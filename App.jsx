@@ -40,6 +40,35 @@ const DIVISIONS = {
   homme_pro:  { label: "Homme — Pro",  gender: "H", pro: true,  push: "175 kg", pull: "153 kg", farmers: "2 × 32 kg", lunge: "sac 30 kg", wallball: "9 kg → 3,00 m" },
 };
 
+/* ---------- Épreuves HYROX confirmées (instantané — à rafraîchir) ----------
+   Source : calendrier officiel hyrox.com. Date = 1er jour de l'épreuve.
+   Beaucoup d'épreuves de la nouvelle saison ne sont pas encore datées :
+   le bouton "Trouver mon épreuve" renvoie vers le calendrier officiel. */
+const EVENTS = [
+  { region: "Europe / EMEA", city: "Athènes", country: "Grèce", date: "2026-09-05" },
+  { region: "Europe / EMEA", city: "Istanbul", country: "Turquie", date: "2026-08-01" },
+  { region: "Europe / EMEA", city: "Utrecht", country: "Pays-Bas", date: "2026-11-26" },
+  { region: "Amériques", city: "Washington DC", country: "USA", date: "2026-09-03" },
+  { region: "Amériques", city: "Salt Lake City", country: "USA", date: "2026-09-18" },
+  { region: "Amériques", city: "Acapulco", country: "Mexique", date: "2026-09-05" },
+  { region: "Amériques", city: "Rio de Janeiro", country: "Brésil", date: "2026-11-21" },
+  { region: "Asie-Pacifique", city: "Jakarta", country: "Indonésie", date: "2026-06-27" },
+  { region: "Asie-Pacifique", city: "Sydney", country: "Australie", date: "2026-07-01" },
+  { region: "Asie-Pacifique", city: "Hangzhou", country: "Chine", date: "2026-07-04" },
+  { region: "Asie-Pacifique", city: "New Delhi", country: "Inde", date: "2026-07-24" },
+  { region: "Asie-Pacifique", city: "Chengdu", country: "Chine", date: "2026-08-01" },
+  { region: "Asie-Pacifique", city: "Chiba", country: "Japon", date: "2026-08-06" },
+  { region: "Asie-Pacifique", city: "Bangkok", country: "Thaïlande", date: "2026-08-13" },
+  { region: "Asie-Pacifique", city: "Shenzhen", country: "Chine", date: "2026-08-15" },
+  { region: "Asie-Pacifique", city: "Perth", country: "Australie", date: "2026-08-21" },
+  { region: "Asie-Pacifique", city: "Mumbai", country: "Inde", date: "2026-09-18" },
+  { region: "Asie-Pacifique", city: "Beijing", country: "Chine", date: "2026-09-12" },
+  { region: "Afrique", city: "Le Cap", country: "Afrique du Sud", date: "2026-08-14" },
+];
+const FRENCH_MONTHS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+function fmtEventDate(iso) { const d = new Date(iso + "T00:00:00"); return `${d.getDate()} ${FRENCH_MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
+const EVENT_REGIONS = ["Europe / EMEA", "Amériques", "Asie-Pacifique", "Afrique"];
+
 /* ---------- Temps / allures ---------- */
 const pad = (n) => String(n).padStart(2, "0");
 const secToMMSS = (s) => `${Math.floor(s / 60)}:${pad(Math.round(s % 60))}`;
@@ -265,7 +294,7 @@ function generateProgram(form, limiters) {
     if (isRaceWeek) focus = "Semaine de course ! Fraîcheur, routine, confiance. Tu es prêt·e.";
     return { number: i + 1, phaseKey, phaseLabel: PHASE_META[phaseKey].label, color: PHASE_META[phaseKey].color, isDeload, isTaper: phaseKey === "taper", isRaceWeek, focus, totalMin, days: layout };
   });
-  return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak };
+  return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak, eventCity: form.eventCity || "" };
 }
 
 /* ============================ UI ============================ */
@@ -284,13 +313,14 @@ function RhythmStrip({ height = 14 }) {
 }
 
 /* ---------------- Barre de navigation ---------------- */
-function Nav({ account, onLogin, onLogout, onHome, onStart }) {
+function Nav({ account, onLogin, onLogout, onHome, onStart, hasProgram, onProgram }) {
   return (<nav className="nav">
-    <button className="brand" onClick={onHome}>
+    <button className="brand" onClick={onHome} title="Retour à l'accueil">
       <span className="logo"><Activity size={17} /></span>
       <span className="brand-name">MyHyrox<span className="brand-accent">Prog</span></span>
     </button>
     <div className="nav-right">
+      {hasProgram && <button className="nav-link" onClick={onProgram}>Mon programme</button>}
       {account ? (<>
         <span className="nav-user"><User size={14} /> {account.name}</span>
         <button className="btn ghost sm" onClick={onLogout}><LogOut size={14} /> Déconnexion</button>
@@ -398,6 +428,8 @@ function Paywall({ onClose, onUnlock }) {
 const STEPS = ["La course", "Course à pied", "Performances", "Force & matériel", "Disponibilité"];
 function Wizard({ onGenerate, account }) {
   const [step, setStep] = useState(0);
+  const [dateMode, setDateMode] = useState("event"); // "event" | "manual"
+  const [eventCity, setEventCity] = useState("");
   const [raceDate, setRaceDate] = useState("");
   const [division, setDivision] = useState("homme_open");
   const [goal, setGoal] = useState("finir");
@@ -424,7 +456,7 @@ function Wizard({ onGenerate, account }) {
     return true;
   };
   const submit = () => onGenerate({
-    weeks: Math.min(24, Math.max(2, weeks)), division, goal,
+    weeks: Math.min(24, Math.max(2, weeks)), division, goal, eventCity,
     fiveKTime: knows5k === "yes" ? fiveKTime : "", runLevel,
     doneHyrox, hyroxFinish, hyroxRunAvg, stationTimes,
     strengthLevel, experience, equipment, weakStations, daysPerWeek,
@@ -438,10 +470,31 @@ function Wizard({ onGenerate, account }) {
     <div className="wiz-body">
       {step === 0 && (<>
         <h3 className="q">Quand a lieu ta course&nbsp;?</h3>
-        <label className="field"><span className="field-label"><Calendar size={14} /> Date de l'épreuve</span>
-          <input type="date" value={raceDate} onChange={(e) => setRaceDate(e.target.value)} className="input" /></label>
+        <div className="grid2">
+          <button className={`chip ${dateMode === "event" ? "on" : ""}`} onClick={() => setDateMode("event")}>Choisir une épreuve</button>
+          <button className={`chip ${dateMode === "manual" ? "on" : ""}`} onClick={() => setDateMode("manual")}>Saisir une date</button>
+        </div>
+        {dateMode === "event" ? (
+          <label className="field mt"><span className="field-label"><MapPin size={14} /> Épreuve HYROX</span>
+            <select className="input" value={eventCity}
+              onChange={(e) => { const ev = EVENTS.find((x) => x.city === e.target.value); setEventCity(e.target.value); if (ev) setRaceDate(ev.date); }}>
+              <option value="">— Sélectionne ton épreuve —</option>
+              {EVENT_REGIONS.map((r) => (
+                <optgroup key={r} label={r}>
+                  {EVENTS.filter((ev) => ev.region === r && new Date(ev.date) > new Date())
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map((ev) => (<option key={ev.city} value={ev.city}>{ev.city} ({ev.country}) — {fmtEventDate(ev.date)}</option>))}
+                </optgroup>
+              ))}
+            </select>
+            <span className="hint subtle">Ton épreuve n'est pas listée (date pas encore publiée) ? <a href="https://hyrox.com/find-my-race/" target="_blank" rel="noreferrer" className="link">Trouve-la sur le calendrier officiel</a> puis saisis la date à la main.</span>
+          </label>
+        ) : (
+          <label className="field mt"><span className="field-label"><Calendar size={14} /> Date de l'épreuve</span>
+            <input type="date" value={raceDate} onChange={(e) => { setRaceDate(e.target.value); setEventCity(""); }} className="input" /></label>
+        )}
         {weeks !== null && (<p className={`hint ${weeks < 2 ? "warn" : ""}`}>
-          {weeks < 1 ? "Date passée ou trop proche — choisis une date future."
+          {eventCity ? `${eventCity} · ` : ""}{weeks < 1 ? "Date passée ou trop proche — choisis une date future."
             : weeks < 4 ? `${weeks} semaine(s) : c'est court. Préparation finale ciblée.`
             : weeks > 24 ? `${weeks} semaines : plan plafonné à 24 semaines.`
             : `${weeks} semaines de préparation. Parfait pour progresser.`}</p>)}
@@ -505,7 +558,7 @@ function Wizard({ onGenerate, account }) {
         <h3 className="q">Combien de jours par semaine&nbsp;?</h3>
         <div className="grid4">{[3, 4, 5, 6].map((d) => (<button key={d} className={`chip big ${daysPerWeek === d ? "on" : ""}`} onClick={() => setDays(d)}><span className="mono big-num">{d}</span><span>jours</span></button>))}</div>
         <div className="recap"><h4>Récapitulatif</h4><ul>
-          <li><MapPin size={13} /> {weeks ? Math.min(24, Math.max(2, weeks)) : "—"} semaines · {DIVISIONS[division].label}</li>
+          <li><MapPin size={13} /> {eventCity ? `${eventCity} · ` : ""}{weeks ? Math.min(24, Math.max(2, weeks)) : "—"} semaines · {DIVISIONS[division].label}</li>
           <li><Footprints size={13} /> 5 km : {knows5k === "yes" ? (fiveKTime || "—") : `niveau ${runLevel}`}{doneHyrox === "yes" && hyroxFinish ? ` · Hyrox : ${hyroxFinish}` : ""}</li>
           <li><Dumbbell size={13} /> Force {strengthLevel}/5 · {equipment === "gym" ? "salle" : equipment === "limited" ? "limité" : "maison"}</li>
           <li><Calendar size={13} /> {daysPerWeek} séances / semaine</li>
@@ -607,7 +660,7 @@ function Dashboard({ program, limiters, unlocked, checks, onToggle, onUnlock, on
   return (<div className="program">
     <div className="summary card">
       <div className="sum-top">
-        <div><span className="eyebrow">Ton plan personnalisé</span><h2 className="sum-title">Route vers le départ</h2></div>
+        <div><span className="eyebrow">Ton plan personnalisé</span><h2 className="sum-title">{program.eventCity ? `Cap sur ${program.eventCity}` : "Route vers le départ"}</h2></div>
         <div className="countdown"><span className="mono cd-num">{totalWeeks}</span><span className="cd-label">semaines<br />avant la course</span></div>
       </div>
       <RhythmStrip height={16} />
@@ -695,12 +748,13 @@ export default function App() {
   const toggleCheck = (key) => setChecks((p) => ({ ...p, [key]: !p[key] }));
   const unlock = () => { setUnlocked(true); setShowPay(false); };
 
-  const goHome = () => setView(saved ? "dashboard" : "landing");
+  const goHome = () => { setView("landing"); setTimeout(() => topRef.current?.scrollIntoView({ behavior: "smooth" }), 30); };
+  const goProgram = () => setView("dashboard");
   const goStart = () => setView("onboarding");
 
   return (<div className="mhp">
     <style>{CSS}</style>
-    <Nav account={account} onLogin={() => setShowAuth(true)} onLogout={logout} onHome={goHome} onStart={goStart} />
+    <Nav account={account} onLogin={() => setShowAuth(true)} onLogout={logout} onHome={goHome} onStart={goStart} hasProgram={!!saved} onProgram={goProgram} />
     <div ref={topRef} />
     <main className="main">
       {view === "landing" && <Landing onStart={goStart} />}
@@ -833,6 +887,9 @@ const CSS = `
 .input:focus{outline:none;border-color:var(--cobalt);box-shadow:0 0 0 3px rgba(43,75,238,.13);}
 .input.mono{letter-spacing:.04em;}
 .input.sm{padding:8px 10px;font-size:14px;}
+select.input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B6F79' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;cursor:pointer;}
+.link{color:var(--cobalt);text-decoration:underline;font-weight:600;}
+.link:hover{color:var(--ink);}
 .hint{font-size:13px;color:var(--cobalt);margin:10px 0 0;line-height:1.5;}
 .hint.warn{color:var(--orange);}
 .hint.subtle{color:var(--muted);}
