@@ -37,7 +37,7 @@ const DIVISIONS = {
   femme_open: { label: "Femme — Open", gender: "F", pro: false, push: "102 kg", pull: "78 kg", farmers: "2 × 16 kg", lunge: "sac 10 kg", wallball: "4 kg → 2,70 m" },
   homme_open: { label: "Homme — Open", gender: "H", pro: false, push: "152 kg", pull: "103 kg", farmers: "2 × 24 kg", lunge: "sac 20 kg", wallball: "6 kg → 3,00 m" },
   femme_pro:  { label: "Femme — Pro",  gender: "F", pro: true,  push: "152 kg", pull: "103 kg", farmers: "2 × 24 kg", lunge: "sac 20 kg", wallball: "6 kg → 2,70 m" },
-  homme_pro:  { label: "Homme — Pro",  gender: "H", pro: true,  push: "175 kg", pull: "153 kg", farmers: "2 × 32 kg", lunge: "sac 30 kg", wallball: "9 kg → 3,00 m" },
+  homme_pro:  { label: "Homme — Pro",  gender: "H", pro: true,  push: "202 kg", pull: "153 kg", farmers: "2 × 32 kg", lunge: "sac 30 kg", wallball: "9 kg → 3,00 m" },
 };
 
 /* ---------- Épreuves HYROX confirmées (instantané — à rafraîchir) ----------
@@ -68,6 +68,17 @@ const EVENTS = [
 const FRENCH_MONTHS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
 function fmtEventDate(iso) { const d = new Date(iso + "T00:00:00"); return `${d.getDate()} ${FRENCH_MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
 const EVENT_REGIONS = ["Europe / EMEA", "Amériques", "Asie-Pacifique", "Afrique"];
+
+/* ---------- Médianes de référence par division (en secondes) ----------
+   Sources : analyses publiques de résultats HYROX (HYROX Insider, HyroxDataLab),
+   recalées sur des cas réels. Valeurs indicatives — Pro = estimation (données plus rares).
+   Clés : ski, sledpush, sledpull, burpee, row, farmers, lunge, wallball, run (par km). */
+const REF = {
+  homme_open: { ski: 270, sledpush: 230, sledpull: 245, burpee: 300, row: 270, farmers: 140, lunge: 270, wallball: 345, run: 345 },
+  femme_open: { ski: 300, sledpush: 240, sledpull: 250, burpee: 330, row: 300, farmers: 145, lunge: 300, wallball: 345, run: 380 },
+  homme_pro:  { ski: 255, sledpush: 285, sledpull: 270, burpee: 285, row: 255, farmers: 150, lunge: 290, wallball: 350, run: 315 },
+  femme_pro:  { ski: 285, sledpush: 270, sledpull: 265, burpee: 315, row: 285, farmers: 150, lunge: 300, wallball: 350, run: 350 },
+};
 
 /* ---------- Temps / allures ---------- */
 const pad = (n) => String(n).padStart(2, "0");
@@ -143,41 +154,47 @@ function stationDrill(key, w, equip) {
   }
 }
 
-/* ---------- Analyse des facteurs limitants ---------- */
+/* ---------- Analyse des facteurs limitants ----------
+   Méthode : on compare chaque atelier à la médiane de la division (ratio),
+   puis on repère les ateliers où l'athlète est le plus en retard PAR RAPPORT
+   À SON PROPRE NIVEAU MOYEN. C'est ça, un vrai facteur limitant. */
 function analyzeLimiters(form) {
+  const ref = REF[form.division] || REF.homme_open;
   const times = form.stationTimes || {};
   const entries = STATIONS.map((s) => {
     const sec = mmssToSec(times[s.key]);
-    return sec ? { key: s.key, name: s.name, sec, ratio: sec / s.ref } : null;
+    return sec ? { key: s.key, name: s.name, sec, ratio: sec / ref[s.key] } : null;
   }).filter(Boolean);
 
   const runSec = mmssToSec(form.hyroxRunAvg);
-  const runRatio = runSec ? runSec / RUN_REF : null;
+  const runRatio = runSec ? runSec / ref.run : null;
 
-  // si pas assez de temps saisis, on retombe sur l'auto-déclaré
   if (entries.length < 2) {
-    return {
-      hasData: false,
-      limiters: form.weakStations || [],
-      balance: null,
-      detail: [],
-    };
+    return { hasData: false, limiters: form.weakStations || [], balance: null, detail: [] };
   }
-  const sorted = [...entries].sort((a, b) => b.ratio - a.ratio);
-  const limiters = sorted.filter((e) => e.ratio > 1.04).slice(0, 3).map((e) => e.key);
-  // équilibre course vs ateliers
-  const avgStationRatio = entries.reduce((a, e) => a + e.ratio, 0) / entries.length;
+  // niveau moyen de l'athlète vs sa division (1 = pile la médiane)
+  const mean = entries.reduce((a, e) => a + e.ratio, 0) / entries.length;
+  const scored = entries.map((e) => ({
+    ...e,
+    rel: e.ratio - mean,                       // écart à son propre niveau moyen
+    over: Math.round((e.ratio - 1) * 100),     // écart à la médiane de la division (%)
+  }));
+  const sorted = [...scored].sort((a, b) => b.rel - a.rel);
+  // facteurs limitants = nettement au-dessus de son niveau moyen (≥ 3 %)
+  const limiters = sorted.filter((e) => e.rel > 0.03).slice(0, 3).map((e) => e.key);
+
   let balance = null;
   if (runRatio) {
-    if (runRatio - avgStationRatio > 0.06) balance = "run";
-    else if (avgStationRatio - runRatio > 0.06) balance = "stations";
+    if (runRatio - mean > 0.05) balance = "run";
+    else if (mean - runRatio > 0.05) balance = "stations";
     else balance = "equilibre";
   }
   return {
     hasData: true,
     limiters: limiters.length ? limiters : [sorted[0].key],
-    balance, runRatio, avgStationRatio,
-    detail: sorted.map((e) => ({ ...e, over: Math.round((e.ratio - 1) * 100) })),
+    balance, mean, runRatio,
+    runOver: runRatio ? Math.round((runRatio - 1) * 100) : null,
+    detail: sorted,
   };
 }
 
@@ -582,18 +599,20 @@ function LimitersCard({ limiters }) {
     </div>);
   }
   const bal = { run: "Tu perds surtout du temps en course : priorité au volume et à la course fatiguée.", stations: "Tu perds surtout sur les ateliers : priorité à la force et aux simulations.", equilibre: "Course et ateliers sont équilibrés : on travaille les deux." };
+  const isLim = (k) => limiters.limiters.includes(k);
   return (<div className="card lim">
     <span className="eyebrow"><TrendingUp size={13} /> Tes facteurs limitants</span>
     <p className="lim-lead">Le programme attaque en priorité : <b>{limiters.limiters.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ")}</b>.</p>
     {limiters.balance && <p className="lim-bal">{bal[limiters.balance]}</p>}
     <div className="lim-bars">
-      {limiters.detail.map((d) => (<div key={d.key} className="lim-row">
-        <span className="lim-st">{d.name}</span>
-        <div className="lim-track"><div className="lim-fill" style={{ width: `${Math.min(100, Math.max(8, 100 - d.over * 1.5))}%`, background: d.over > 8 ? "var(--orange)" : d.over > 0 ? "var(--accent-deep)" : "var(--cobalt)" }} /></div>
+      {limiters.detail.map((d) => (<div key={d.key} className={`lim-row ${isLim(d.key) ? "is-lim" : ""}`}>
+        <span className="lim-st">{d.name}{isLim(d.key) && <span className="lim-tag">point faible</span>}</span>
+        <div className="lim-track"><div className="lim-mid" />
+          <div className="lim-fill" style={{ width: `${Math.min(96, Math.max(6, 50 + d.over * 1.6))}%`, background: isLim(d.key) ? "var(--orange)" : d.over > 0 ? "var(--accent-deep)" : "var(--cobalt)" }} /></div>
         <span className="lim-val mono">{d.over > 0 ? `+${d.over}%` : `${d.over}%`}</span>
       </div>))}
     </div>
-    <p className="hint subtle">Écart vs un temps de référence mi-peloton. Plus la barre est courte/orange, plus c'est un point à travailler.</p>
+    <p className="hint subtle">Écart par rapport à la <b>médiane estimée de ta division</b> (− = plus rapide, + = plus lent). Tes points faibles sont les ateliers où tu es le plus en retard <b>par rapport à ton propre niveau moyen</b>, pas dans l'absolu. Médianes indicatives issues d'analyses publiques de résultats HYROX — à affiner.</p>
   </div>);
 }
 
@@ -946,9 +965,12 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .lim-bal{font-size:13.5px;color:var(--ink-2);margin:0 0 14px;}
 .lim-bars{display:grid;gap:9px;margin-top:8px;}
 .lim-row{display:flex;align-items:center;gap:12px;}
-.lim-st{font-size:13px;font-weight:600;min-width:120px;}
-.lim-track{flex:1;height:9px;background:var(--paper-2);border-radius:99px;overflow:hidden;}
-.lim-fill{height:100%;border-radius:99px;}
+.lim-st{font-size:13px;font-weight:600;min-width:150px;}
+.lim-track{flex:1;height:9px;background:var(--paper-2);border-radius:99px;overflow:hidden;position:relative;}
+.lim-mid{position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(22,24,29,.28);z-index:1;}
+.lim-fill{height:100%;border-radius:99px;position:relative;}
+.lim-row.is-lim .lim-st{color:var(--orange);}
+.lim-tag{display:inline-block;margin-left:7px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:var(--orange);padding:1px 6px;border-radius:99px;vertical-align:middle;}
 .lim-val{font-size:12.5px;font-weight:700;min-width:44px;text-align:right;color:var(--ink-2);}
 
 /* Timeline */
