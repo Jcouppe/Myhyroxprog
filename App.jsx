@@ -85,11 +85,12 @@ const RM_TABLE = [[1,100],[2,96.9],[3,93.1],[4,89.8],[5,87.4],[6,85.8],[7,82.9],
 function pctForReps(r) { let best = RM_TABLE[0]; for (const e of RM_TABLE) if (Math.abs(e[0] - r) < Math.abs(best[0] - r)) best = e; return best[1]; }
 const round25 = (x) => Math.round(x / 2.5) * 2.5;
 /* charge calculée pour un 1RM donné et un nombre de reps ; null si pas de 1RM */
-function loadFor(oneRM, reps) {
+function loadFor(oneRM, reps, adj = 0) {
   const v = Number(oneRM);
   if (!v || isNaN(v)) return null;
   const pct = pctForReps(reps);
-  return `${round25(v * pct / 100)} kg (≈${Math.round(pct)} %)`;
+  const kg = round25(v * pct / 100 * (1 + 0.025 * adj));
+  return `${kg} kg (≈${Math.round(pct)} %)`;
 }
 
 /* ---------- Temps / allures ---------- */
@@ -104,12 +105,14 @@ function mmssToSec(str) {
 const fmtPace = (s) => `${secToMMSS(s)} /km`;
 const RUN_LEVEL_5K = { debutant: 1800, intermediaire: 1500, confirme: 1260, rapide: 1080 };
 
-function paceZones(fiveKsec, hyroxRunSec) {
+function paceZones(fiveKsec, hyroxRunSec, adj = 0) {
   const p = fiveKsec / 5;
+  const m = Math.min(1.1, Math.max(0.9, 1 - 0.02 * adj)); // adj>0 (trop facile) → plus rapide
   return {
-    p5k: p, easy: p + 70, long: p + 55, tempo: p + 22, threshold: p + 12,
-    interval: Math.max(p - 6, 165),
-    hyrox: hyroxRunSec || p + 38,
+    p5k: p,
+    easy: (p + 70) * m, long: (p + 55) * m, tempo: (p + 22) * m, threshold: (p + 12) * m,
+    interval: Math.max(p - 6, 165) * m,
+    hyrox: (hyroxRunSec || p + 38) * m,
   };
 }
 
@@ -210,6 +213,35 @@ function analyzeLimiters(form) {
   };
 }
 
+/* ---------- Profil / niveau de course ---------- */
+const RUN_LEVELS = ["Débutant", "Intermédiaire", "Confirmé", "Avancé", "Élite"];
+function runProfile(form) {
+  const fiveK = mmssToSec(form.fiveKTime) || RUN_LEVEL_5K[form.runLevel] || RUN_LEVEL_5K.intermediaire;
+  const estimated = mmssToSec(form.fiveKTime) === null;
+  const speed5k = 5000 / fiveK * 3.6;             // km/h sur 5 km
+  const vma = Math.round(speed5k / 0.92 * 10) / 10; // estimation VMA
+  let idx; // 0..4
+  if (fiveK < 1050) idx = 4; else if (fiveK < 1200) idx = 3; else if (fiveK < 1410) idx = 2; else if (fiveK < 1680) idx = 1; else idx = 0;
+  const ref = REF[form.division] || REF.homme_open;
+  const hyroxPace = mmssToSec(form.hyroxRunAvg) || (fiveK / 5 + 38);
+  const vsMedian = Math.round((hyroxPace / ref.run - 1) * 100); // négatif = plus rapide que la médiane
+  return { fiveK, estimated, vma, idx, level: RUN_LEVELS[idx], speed5k: Math.round(speed5k * 10) / 10, hyroxPace, vsMedian };
+}
+
+/* ---------- Suivi adaptatif ---------- */
+const INTENSITY_LABELS = { "-2": "Très allégé", "-1": "Allégé", "0": "Standard", "1": "Soutenu", "2": "Très soutenu" };
+function suggestAdj(feedback, currentAdj) {
+  const vals = Object.values(feedback || {});
+  const easy = vals.filter((v) => v === "easy").length;
+  const hard = vals.filter((v) => v === "hard").length;
+  const ok = vals.filter((v) => v === "ok").length;
+  const rated = easy + hard + ok;
+  let target = currentAdj;
+  if (easy - hard >= 3) target = Math.min(2, currentAdj + 1);
+  else if (hard - easy >= 2) target = Math.max(-2, currentAdj - 1);
+  return { easy, hard, ok, rated, target, changed: target !== currentAdj };
+}
+
 /* ---------- Générateurs de séances ---------- */
 const ramp = (pp, lo, hi) => Math.round(lo + (hi - lo) * pp);
 function sEasyRun(c) { const km = c.phaseKey === "base" ? ramp(c.pp, 5, 8) : c.phaseKey === "build" ? ramp(c.pp, 6, 9) : 6;
@@ -278,8 +310,8 @@ function strengthScheme(phase) {
 function sStrengthLower(c) {
   const { sets, reps, rest, goal } = strengthScheme(c.phaseKey);
   const hingeReps = Math.min(reps, 8);
-  const sq = loadFor(c.orm?.squat, reps);
-  const dl = loadFor(c.orm?.deadlift, hingeReps);
+  const sq = loadFor(c.orm?.squat, reps, c.adj);
+  const dl = loadFor(c.orm?.deadlift, hingeReps, c.adj);
   const items = [
     `${equipAlt("squat", c.equip)} — ${sets} × ${reps}${sq ? ` → ${sq}` : ""}, ${rest}`,
     `${equipAlt("hinge", c.equip)} — ${sets} × ${hingeReps}${dl ? ` → ${dl}` : ""}`,
@@ -294,8 +326,8 @@ function sStrengthLower(c) {
     useMetcon ? metconBlock(c) : { label: "Gainage", items: ["3 × 45 s planche + 3 × 12 dead bug"] }, ] }; }
 function sStrengthUpper(c) {
   const { sets, reps, rest, goal } = strengthScheme(c.phaseKey);
-  const sh = loadFor(c.orm?.shoulder, reps);
-  const bn = loadFor(c.orm?.bench, reps);
+  const sh = loadFor(c.orm?.shoulder, reps, c.adj);
+  const bn = loadFor(c.orm?.bench, reps, c.adj);
   const pullSets = c.maxPull ? `${sets} × ${Math.max(3, Math.round(c.maxPull * (c.phaseKey === "specific" ? 0.55 : 0.45)))} (≈${c.phaseKey === "specific" ? 55 : 45} % de ton max)` : `${sets} × 6–10`;
   const items = [
     `${equipAlt("press", c.equip)} (épaules) — ${sets} × ${reps}${sh ? ` → ${sh}` : ""}, ${rest}`,
@@ -350,11 +382,11 @@ function weekLayout(d) { switch (d) {
     default: return [0, "rest", 1, "rest", 2, "rest", "rest"];
   } }
 
-function generateProgram(form, limiters) {
+function generateProgram(form, limiters, adj = 0) {
   const totalWeeks = form.weeks;
   const phaseSeq = buildPhases(totalWeeks);
   const fiveK = mmssToSec(form.fiveKTime) || RUN_LEVEL_5K[form.runLevel] || RUN_LEVEL_5K.intermediaire;
-  const z = paceZones(fiveK, mmssToSec(form.hyroxRunAvg));
+  const z = paceZones(fiveK, mmssToSec(form.hyroxRunAvg), adj);
   const w = DIVISIONS[form.division];
   const weak = Array.from(new Set([...(form.weakStations || []), ...(limiters.limiters || [])])).slice(0, 4);
   const equip = form.equipment;
@@ -366,7 +398,7 @@ function generateProgram(form, limiters) {
     const isRaceWeek = i === totalWeeks - 1;
     const isDeload = !isRaceWeek && phaseKey !== "taper" && (i + 1) % 4 === 0 && i < totalWeeks - 2;
     const cats = weeklyCategories(form.daysPerWeek, i);
-    const ctx = { z, phaseKey, pp, wk: i, equip, w, weak, orm: form.oneRM || {}, maxPull: form.maxPullups, maxBurp: form.maxBurpees };
+    const ctx = { z, phaseKey, pp, wk: i, equip, w, weak, adj, orm: form.oneRM || {}, maxPull: form.maxPullups, maxBurp: form.maxBurpees };
     let sessions = cats.map((c) => GEN[c]({ ...ctx }));
     if (phaseKey === "taper") {
       sessions = sessions.map((s) => s.cat === "strength" ? { ...s, duration: Math.round(s.duration * 0.6), tag: "Entretien léger", blocks: s.blocks.slice(0, 2) } : s.cat === "hyrox" ? sRaceRehearsal(ctx) : GEN.easyRun(ctx));
@@ -382,7 +414,7 @@ function generateProgram(form, limiters) {
     if (isRaceWeek) focus = "Semaine de course ! Fraîcheur, routine, confiance. Tu es prêt·e.";
     return { number: i + 1, phaseKey, phaseLabel: PHASE_META[phaseKey].label, color: PHASE_META[phaseKey].color, isDeload, isTaper: phaseKey === "taper", isRaceWeek, focus, totalMin, days: layout };
   });
-  return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak, eventCity: form.eventCity || "" };
+  return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak, eventCity: form.eventCity || "", adj };
 }
 
 /* ============================ UI ============================ */
@@ -678,6 +710,32 @@ function Wizard({ onGenerate, account }) {
   </div>);
 }
 
+/* ---------------- Niveau de course ---------------- */
+function RunLevelCard({ profile }) {
+  if (!profile) return null;
+  const faster = profile.vsMedian <= 0;
+  return (<div className="card runlvl">
+    <div className="rl-top">
+      <div>
+        <span className="eyebrow"><Footprints size={13} /> Ton niveau de course</span>
+        <div className="rl-level">{profile.level}</div>
+      </div>
+      <div className="rl-stats">
+        <div className="rl-stat"><span className="rl-l">VMA estimée</span><span className="rl-v mono">{profile.vma} km/h</span></div>
+        <div className="rl-stat"><span className="rl-l">{profile.estimated ? "5 km estimé" : "Allure 5 km"}</span><span className="rl-v mono">{secToMMSS(profile.fiveK / 5)} /km</span></div>
+        <div className="rl-stat"><span className="rl-l">vs médiane division</span><span className="rl-v mono" style={{ color: faster ? "var(--cobalt)" : "var(--orange)" }}>{profile.vsMedian > 0 ? `+${profile.vsMedian}%` : `${profile.vsMedian}%`}</span></div>
+      </div>
+    </div>
+    <div className="rl-meter">{RUN_LEVELS.map((lv, i) => (
+      <div key={lv} className={`rl-seg ${i <= profile.idx ? "on" : ""} ${i === profile.idx ? "cur" : ""}`}><span>{lv}</span></div>
+    ))}</div>
+    <p className="hint subtle">{faster
+      ? "Ta course est un atout : sur Hyrox, courir plus vite que la médiane fait gagner de précieuses minutes (la course = ~51 % du temps total)."
+      : "La course est ton plus gros levier : ~51 % du temps total se joue sur les 8 km. Le plan met l'accent sur le volume facile et l'allure cible."}
+      {profile.estimated && " Niveau estimé depuis ta catégorie déclarée — renseigne ton temps sur 5 km pour plus de précision."}</p>
+  </div>);
+}
+
 /* ---------------- Facteurs limitants ---------------- */
 function LimitersCard({ limiters }) {
   if (!limiters.hasData) {
@@ -705,10 +763,11 @@ function LimitersCard({ limiters }) {
 }
 
 /* ---------------- Séance ---------------- */
-function SessionCard({ s, checked, onToggle }) {
+function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
   const [open, setOpen] = useState(false);
   if (!s) return <div className="day rest"><span className="rest-label">Repos</span></div>;
   const { c, Icon } = CAT_STYLE[s.cat];
+  const fbOpts = [["easy", "Trop facile"], ["ok", "Parfait"], ["hard", "Trop dur"]];
   return (<div className={`day ${open ? "open" : ""} ${checked ? "checked" : ""}`}>
     <div className="day-head">
       <button className="day-check" onClick={onToggle} aria-label={checked ? "Décocher" : "Marquer comme fait"}>
@@ -720,13 +779,17 @@ function SessionCard({ s, checked, onToggle }) {
         <ChevronDown size={16} className="day-chev" />
       </button>
     </div>
+    {checked && (<div className="day-fb">
+      <span className="day-fb-l">Ressenti :</span>
+      {fbOpts.map(([v, l]) => (<button key={v} className={`fb-btn ${fb === v ? "on " + v : ""}`} onClick={() => onFeedback(fb === v ? null : v)}>{l}</button>))}
+    </div>)}
     {open && (<div className="day-body">{s.blocks.map((b, i) => (<div key={i} className="block">
       <span className="block-label">{b.label}</span><ul>{b.items.map((it, j) => <li key={j}>{it}</li>)}</ul></div>))}</div>)}
   </div>);
 }
 
 /* ---------------- Semaine ---------------- */
-function WeekCard({ wk, locked, checks, onToggle, onUnlock, defaultOpen }) {
+function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen);
   const dayCount = wk.days.filter(Boolean).length;
   const doneCount = wk.days.reduce((a, s, i) => a + (s && checks[`w${wk.number}d${i}`] ? 1 : 0), 0);
@@ -744,7 +807,7 @@ function WeekCard({ wk, locked, checks, onToggle, onUnlock, defaultOpen }) {
     {!locked && open && (<div className="week-days">
       {wk.days.map((s, i) => (<div key={i} className="day-row">
         <span className="dow mono">{DAY_NAMES[i]}</span>
-        <SessionCard s={s} checked={!!checks[`w${wk.number}d${i}`]} onToggle={() => onToggle(`w${wk.number}d${i}`)} />
+        <SessionCard s={s} checked={!!checks[`w${wk.number}d${i}`]} fb={feedback[`w${wk.number}d${i}`]} onToggle={() => onToggle(`w${wk.number}d${i}`)} onFeedback={(v) => onFeedback(`w${wk.number}d${i}`, v)} />
       </div>))}
     </div>)}
     {locked && (<div className="week-locked-body" onClick={onUnlock}>
@@ -755,7 +818,7 @@ function WeekCard({ wk, locked, checks, onToggle, onUnlock, defaultOpen }) {
 }
 
 /* ---------------- Dashboard ---------------- */
-function Dashboard({ program, limiters, unlocked, checks, onToggle, onUnlock, onRestart }) {
+function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onToggle, onFeedback, onAdjust, onUnlock, onRestart }) {
   const { division, z, weeks, totalWeeks, daysPerWeek } = program;
   const [showWeights, setShowWeights] = useState(false);
   const phaseSummary = useMemo(() => { const out = []; let cur = null;
@@ -763,6 +826,8 @@ function Dashboard({ program, limiters, unlocked, checks, onToggle, onUnlock, on
   const totalSessions = weeks.reduce((a, w) => a + w.days.filter(Boolean).length, 0);
   const doneSessions = Object.values(checks).filter(Boolean).length;
   const pct = totalSessions ? Math.round(doneSessions / totalSessions * 100) : 0;
+  const adj = program.adj || 0;
+  const sg = suggestAdj(feedback, adj);
 
   return (<div className="program">
     <div className="summary card">
@@ -777,6 +842,7 @@ function Dashboard({ program, limiters, unlocked, checks, onToggle, onUnlock, on
       </div>
       <div className="sum-grid">
         <div className="sum-cell"><span className="sc-l">Division</span><span className="sc-v">{division.label}</span></div>
+        <div className="sum-cell"><span className="sc-l">Intensité actuelle</span><span className="sc-v">{INTENSITY_LABELS[String(adj)]}</span></div>
         <div className="sum-cell"><span className="sc-l">Séances / sem.</span><span className="sc-v mono">{daysPerWeek}</span></div>
         <div className="sum-cell"><span className="sc-l">Allure souple</span><span className="sc-v mono">{fmtPace(z.easy)}</span></div>
         <div className="sum-cell"><span className="sc-l">Allure tempo</span><span className="sc-v mono">{fmtPace(z.tempo)}</span></div>
@@ -785,6 +851,7 @@ function Dashboard({ program, limiters, unlocked, checks, onToggle, onUnlock, on
       </div>
     </div>
 
+    <RunLevelCard profile={profile} />
     <LimitersCard limiters={limiters} />
 
     <div className="timeline card">
@@ -808,12 +875,22 @@ function Dashboard({ program, limiters, unlocked, checks, onToggle, onUnlock, on
       </div><p className="hint subtle">Valeurs indicatives saison 2025/26 (poids du traîneau inclus). Vérifie toujours les standards officiels de ta course sur le site HYROX.</p></>)}
     </div>
 
+    {sg.rated >= 3 && (<div className={`adapt-band ${sg.changed ? "go" : ""}`}>
+      <TrendingUp size={16} />
+      <span>{sg.changed
+        ? (sg.target > adj
+          ? `Tes retours montrent que c'est trop facile (${sg.easy} séances faciles). On peut monter l'intensité d'un cran.`
+          : `Tes retours montrent que c'est trop dur (${sg.hard} séances dures). On peut alléger d'un cran.`)
+        : `Retours pris en compte : intensité « ${INTENSITY_LABELS[String(adj)]} » bien calée pour l'instant.`}</span>
+      {sg.changed && <button className="btn primary sm" onClick={() => onAdjust(sg.target)}>Réajuster mon plan</button>}
+    </div>)}
+
     {!unlocked && (<div className="paywall-band" onClick={onUnlock}>
       <Lock size={15} /> <span>Semaine 1 offerte. Débloque les <b>{totalWeeks - 1} semaines suivantes</b> + le suivi complet.</span>
       <button className="btn primary sm">Débloquer</button>
     </div>)}
 
-    <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} onToggle={onToggle} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
+    <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} feedback={feedback} onToggle={onToggle} onFeedback={onFeedback} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
 
     <div className="prog-actions">
       <button className="btn ghost" onClick={() => window.print()}><Printer size={15} /> Imprimer / PDF</button>
@@ -828,6 +905,7 @@ export default function App() {
   const [account, setAccount] = useState(() => store.get("mhp_account", null));
   const [saved, setSaved] = useState(() => store.get("mhp_data", null)); // {form, program, limiters}
   const [checks, setChecks] = useState(() => store.get("mhp_checks", {}));
+  const [feedback, setFeedback] = useState(() => store.get("mhp_feedback", {}));
   const [unlocked, setUnlocked] = useState(() => store.get("mhp_unlocked", false));
   const [view, setView] = useState(() => store.get("mhp_data", null) ? "dashboard" : "landing");
   const [showAuth, setShowAuth] = useState(false);
@@ -840,19 +918,29 @@ export default function App() {
     document.head.appendChild(l); } }, []);
 
   useEffect(() => { store.set("mhp_checks", checks); }, [checks]);
+  useEffect(() => { store.set("mhp_feedback", feedback); }, [feedback]);
   useEffect(() => { store.set("mhp_unlocked", unlocked); }, [unlocked]);
 
   const handleGenerate = (form) => {
     const limiters = analyzeLimiters(form);
     const program = generateProgram(form, limiters);
-    const data = { form, program, limiters };
+    const profile = runProfile(form);
+    const data = { form, program, limiters, profile };
     setSaved(data); store.set("mhp_data", data);
     setView("dashboard"); setTimeout(() => topRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
-  const restart = () => { store.del("mhp_data"); setSaved(null); setChecks({}); store.set("mhp_checks", {}); setView("onboarding"); };
+  const restart = () => { store.del("mhp_data"); setSaved(null); setChecks({}); store.set("mhp_checks", {}); setFeedback({}); store.set("mhp_feedback", {}); setView("onboarding"); };
   const connect = (acc) => { setAccount(acc); store.set("mhp_account", acc); setShowAuth(false); };
   const logout = () => { setAccount(null); store.del("mhp_account"); };
   const toggleCheck = (key) => setChecks((p) => ({ ...p, [key]: !p[key] }));
+  const setSessionFeedback = (key, val) => setFeedback((p) => { const n = { ...p }; if (val === null) delete n[key]; else n[key] = val; return n; });
+  const applyAdjustment = (target) => {
+    if (!saved?.form) return;
+    const program = generateProgram(saved.form, saved.limiters, target);
+    const data = { ...saved, program };
+    setSaved(data); store.set("mhp_data", data);
+    setFeedback({}); store.set("mhp_feedback", {}); // on repart sur des retours frais
+  };
   const unlock = () => { setUnlocked(true); setShowPay(false); };
 
   const goHome = () => { setView("landing"); setTimeout(() => topRef.current?.scrollIntoView({ behavior: "smooth" }), 30); };
@@ -866,7 +954,7 @@ export default function App() {
     <main className="main">
       {view === "landing" && <Landing onStart={goStart} />}
       {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">Construisons ton programme</h2><Wizard onGenerate={handleGenerate} account={account} /></div>)}
-      {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} unlocked={unlocked} checks={checks} onToggle={toggleCheck} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
+      {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} profile={saved.profile || (saved.form ? runProfile(saved.form) : null)} unlocked={unlocked} checks={checks} feedback={feedback} onToggle={toggleCheck} onFeedback={setSessionFeedback} onAdjust={applyAdjustment} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
     </main>
     <footer className="foot"><RhythmStrip height={10} /><span>MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.</span></footer>
     {showAuth && <AuthModal onClose={() => setShowAuth(false)} onConnect={connect} />}
@@ -1046,6 +1134,20 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .sc-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
 .sc-v{font-size:16px;font-weight:700;}
 
+/* Run level */
+.runlvl{padding:20px 22px;}
+.rl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+.rl-level{font-family:'Archivo';font-weight:900;letter-spacing:-.02em;font-size:30px;margin-top:4px;}
+.rl-stats{display:flex;gap:18px;flex-wrap:wrap;}
+.rl-stat{display:flex;flex-direction:column;gap:2px;}
+.rl-l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.rl-v{font-size:15px;font-weight:700;}
+.rl-meter{display:flex;gap:4px;margin:16px 0 12px;}
+.rl-seg{flex:1;text-align:center;padding:7px 4px;border-radius:8px;background:var(--paper-2);color:var(--muted);font-size:11px;font-weight:600;transition:.15s;}
+.rl-seg.on{background:#cfd6f7;color:var(--ink);}
+.rl-seg.cur{background:var(--cobalt);color:#fff;}
+.rl-seg span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
 /* Limiters */
 .lim{padding:20px 22px;}
 .lim-empty{font-size:14px;color:var(--ink-2);line-height:1.55;margin:12px 0 0;}
@@ -1089,6 +1191,21 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .paywall-band svg{color:var(--accent);flex-shrink:0;}
 .paywall-band span{flex:1;font-size:14px;min-width:180px;}
 .paywall-band b{color:var(--accent);}
+
+/* Adaptation */
+.adapt-band{display:flex;align-items:center;gap:11px;flex-wrap:wrap;background:#cfd6f7;border:1px solid var(--cobalt);border-radius:14px;padding:14px 18px;}
+.adapt-band.go{background:var(--accent);border-color:var(--accent-deep);}
+.adapt-band svg{color:var(--cobalt);flex-shrink:0;}
+.adapt-band.go svg{color:var(--accent-ink);}
+.adapt-band span{flex:1;font-size:13.5px;min-width:180px;color:var(--ink);}
+/* Feedback séance */
+.day-fb{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 13px 11px 50px;border-top:1px solid var(--line-2);background:rgba(43,75,238,.03);}
+.day-fb-l{font-size:11.5px;font-weight:600;color:var(--muted);}
+.fb-btn{font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;border:1.5px solid var(--line);background:#fff;color:var(--ink-2);transition:.12s;}
+.fb-btn:hover{border-color:var(--ink);}
+.fb-btn.on.easy{background:var(--cobalt);border-color:var(--cobalt);color:#fff;}
+.fb-btn.on.ok{background:var(--accent-deep);border-color:var(--accent-deep);color:var(--accent-ink);}
+.fb-btn.on.hard{background:var(--orange);border-color:var(--orange);color:#fff;}
 
 /* Weeks */
 .weeks{display:flex;flex-direction:column;gap:9px;}
