@@ -80,6 +80,18 @@ const REF = {
   femme_pro:  { ski: 285, sledpush: 270, sledpull: 265, burpee: 315, row: 285, farmers: 150, lunge: 300, wallball: 350, run: 350 },
 };
 
+/* ---------- Table de correspondance %1RM → répétitions (fournie) ---------- */
+const RM_TABLE = [[1,100],[2,96.9],[3,93.1],[4,89.8],[5,87.4],[6,85.8],[7,82.9],[8,80.4],[9,78.6],[10,76.2],[15,70],[22,65],[25,60],[45,50],[90,40],[125,30]];
+function pctForReps(r) { let best = RM_TABLE[0]; for (const e of RM_TABLE) if (Math.abs(e[0] - r) < Math.abs(best[0] - r)) best = e; return best[1]; }
+const round25 = (x) => Math.round(x / 2.5) * 2.5;
+/* charge calculée pour un 1RM donné et un nombre de reps ; null si pas de 1RM */
+function loadFor(oneRM, reps) {
+  const v = Number(oneRM);
+  if (!v || isNaN(v)) return null;
+  const pct = pctForReps(reps);
+  return `${round25(v * pct / 100)} kg (≈${Math.round(pct)} %)`;
+}
+
 /* ---------- Temps / allures ---------- */
 const pad = (n) => String(n).padStart(2, "0");
 const secToMMSS = (s) => `${Math.floor(s / 60)}:${pad(Math.round(s % 60))}`;
@@ -220,25 +232,84 @@ function sIntervals(c) { const menus = { base: [["8 × 400 m", "récup 90 s trot
     { label: "Échauffement", items: ["15 min progressif + 4 lignes droites + gammes"] },
     { label: "Bloc principal", items: [`${p[0]} à ${fmtPace(c.z.interval)} — ${p[1]}`] },
     { label: "Retour au calme", items: ["10 min trot très facile"] }, ] }; }
-function sTempo(c) { const min = c.phaseKey === "base" ? ramp(c.pp, 18, 25) : c.phaseKey === "build" ? ramp(c.pp, 25, 35) : ramp(c.pp, 20, 30);
-  return { cat: "run", title: "Tempo / seuil", tag: "Endurance de vitesse", duration: min + 30, blocks: [
+function sTempo(c) {
+  const pp = c.pp;
+  // Phases finales : on remplace le seuil par de l'allure cible course (recommandé en prépa Hyrox)
+  if (c.phaseKey === "specific" || c.phaseKey === "taper") {
+    const opts = [["4 × 6 min", "récup 2 min"], ["3 × 8 min", "récup 2 min"], ["3 × 10 min", "récup 2 min"]];
+    const pick = opts[Math.min(opts.length - 1, Math.round(pp * (opts.length - 1)))];
+    return { cat: "run", title: "Allure cible Hyrox", tag: "Spécifique course", duration: 60, blocks: [
+      { label: "Échauffement", items: ["15 min facile + 4 lignes droites"] },
+      { label: "Bloc principal", items: [`${pick[0]} à ${fmtPace(c.z.hyrox)} — ${pick[1]}`] },
+      { label: "Notes", items: ["Mémorise la sensation : en compétition, le GPS est souvent inutilisable dans les halls."] },
+      { label: "Retour au calme", items: ["10 min trot"] }, ] };
+  }
+  // Base / Développement : tempo et seuil en alternance, progressifs
+  const tempo = [["2 × 10 min", "récup 3 min"], ["3 × 10 min", "récup 3 min"], ["3 × 15 min", "récup 3 min"]];
+  const seuil = [["4 × 4 min", "récup 2 min"], ["4 × 5 min", "récup 2 min"], ["4 × 6 min", "récup 2 min"]];
+  const useSeuil = c.wk % 2 === 1;
+  const set = useSeuil ? seuil : tempo;
+  const pick = set[Math.min(set.length - 1, Math.round(pp * (set.length - 1)))];
+  const pace = useSeuil ? c.z.threshold : c.z.tempo;
+  return { cat: "run", title: useSeuil ? "Seuil" : "Tempo", tag: "Endurance de vitesse", duration: 55, blocks: [
     { label: "Échauffement", items: ["15 min facile + 3 lignes droites"] },
-    { label: "Bloc principal", items: [`${min} min en continu à ${fmtPace(c.z.tempo)} (confortablement dur)`] },
+    { label: "Bloc principal", items: [`${pick[0]} à ${fmtPace(pace)} — ${pick[1]} (effort ${useSeuil ? "légèrement difficile" : "confortablement dur"})`] },
     { label: "Retour au calme", items: ["10 min trot"] }, ] }; }
-function sStrengthLower(c) { const scheme = c.phaseKey === "base" ? "4 × 8–10" : c.phaseKey === "build" ? "5 × 4–6 (lourd)" : "4 × 6 explosif";
-  const items = [`${equipAlt("squat", c.equip)} — ${scheme}`, `${equipAlt("hinge", c.equip)} — 4 × 6–8`, `${equipAlt("sledpush", c.equip)} — 5 × 15 m (≈ ${c.w.push}) si dispo`, `${equipAlt("lunge", c.equip)} — 3 × 20 m lestées`];
+/* Finisher métabolique AMRAP/EMOM (phases build/specific) — scalé sur les maxs */
+function metconBlock(c) {
+  const burp = c.maxBurp ? Math.max(5, Math.round(c.maxBurp * 0.5)) : 8;
+  const pull = c.maxPull ? Math.max(3, Math.round(c.maxPull * 0.4)) : 6;
+  if (c.wk % 2 === 0) {
+    return { label: "Finisher — EMOM 12 min", items: [
+      `Min 1 : ${burp} burpees`, `Min 2 : 12 ${equipAlt("wallball", c.equip)}`, `Min 3 : ${pull} tractions`,
+      "4 tours. Le repos = le temps restant dans chaque minute." ] };
+  }
+  return { label: "Finisher — AMRAP 10 min", items: [
+    "Max de tours en 10 min :", `• 10 ${equipAlt("wallball", c.equip)}`, "• 12 fentes lestées",
+    `• ${pull} tractions`, "• 200 m rameur" ] };
+}
+/* schéma de force par phase : lourd/peu de reps tôt → endurance/résistance tard */
+function strengthScheme(phase) {
+  if (phase === "base")     return { sets: 5, reps: 5,  rest: "récup 2–3 min",            goal: "force" };
+  if (phase === "build")    return { sets: 4, reps: 4,  rest: "récup 2–3 min",            goal: "force max" };
+  if (phase === "specific") return { sets: 4, reps: 15, rest: "récup 45–60 s (résistance)", goal: "endurance de force" };
+  return { sets: 3, reps: 6, rest: "récup libre, charges légères", goal: "entretien" };
+}
+function sStrengthLower(c) {
+  const { sets, reps, rest, goal } = strengthScheme(c.phaseKey);
+  const hingeReps = Math.min(reps, 8);
+  const sq = loadFor(c.orm?.squat, reps);
+  const dl = loadFor(c.orm?.deadlift, hingeReps);
+  const items = [
+    `${equipAlt("squat", c.equip)} — ${sets} × ${reps}${sq ? ` → ${sq}` : ""}, ${rest}`,
+    `${equipAlt("hinge", c.equip)} — ${sets} × ${hingeReps}${dl ? ` → ${dl}` : ""}`,
+    `${equipAlt("sledpush", c.equip)} — 5 × 15 m (≈ ${c.w.push}) si dispo`,
+    `${equipAlt("lunge", c.equip)} — 3 × 20 m lestées`,
+  ];
   const focus = ["sledpush", "sledpull", "lunge"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip));
-  return { cat: "strength", title: "Force — bas du corps", tag: "Jambes & chaîne postérieure", duration: 65, blocks: [
+  const useMetcon = c.phaseKey === "build" || c.phaseKey === "specific";
+  return { cat: "strength", title: "Force — bas du corps", tag: `Jambes · ${goal}`, duration: 65, blocks: [
     { label: "Échauffement", items: ["8 min vélo/corde + mobilité hanches + activation fessiers"] },
     { label: "Bloc principal", items }, ...(focus.length ? [{ label: "Facteur limitant ciblé", items: focus }] : []),
-    { label: "Gainage", items: ["3 × 45 s planche + 3 × 12 dead bug"] }, ] }; }
-function sStrengthUpper(c) { const scheme = c.phaseKey === "base" ? "4 × 8–10" : "4 × 5–6";
-  const items = [`${equipAlt("press", c.equip)} — ${scheme}`, `${equipAlt("pull", c.equip)} — 4 × 6–10`, `${equipAlt("ski", c.equip)} — 4 × 250 m`, `${equipAlt("farmers", c.equip)} — 4 × 40 m (≈ ${c.w.farmers})`];
+    useMetcon ? metconBlock(c) : { label: "Gainage", items: ["3 × 45 s planche + 3 × 12 dead bug"] }, ] }; }
+function sStrengthUpper(c) {
+  const { sets, reps, rest, goal } = strengthScheme(c.phaseKey);
+  const sh = loadFor(c.orm?.shoulder, reps);
+  const bn = loadFor(c.orm?.bench, reps);
+  const pullSets = c.maxPull ? `${sets} × ${Math.max(3, Math.round(c.maxPull * (c.phaseKey === "specific" ? 0.55 : 0.45)))} (≈${c.phaseKey === "specific" ? 55 : 45} % de ton max)` : `${sets} × 6–10`;
+  const items = [
+    `${equipAlt("press", c.equip)} (épaules) — ${sets} × ${reps}${sh ? ` → ${sh}` : ""}, ${rest}`,
+    ...(bn ? [`Développé couché — ${sets} × ${reps} → ${bn}`] : []),
+    `${equipAlt("pull", c.equip)} — ${pullSets}`,
+    `${equipAlt("ski", c.equip)} — 4 × 250 m`,
+    `${equipAlt("farmers", c.equip)} — 4 × 40 m (≈ ${c.w.farmers})`,
+  ];
   const focus = ["ski", "sledpull", "farmers", "row"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip));
-  return { cat: "strength", title: "Force — haut du corps & grip", tag: "Tirage, épaules, préhension", duration: 60, blocks: [
+  const useMetcon = c.phaseKey === "build" || c.phaseKey === "specific";
+  return { cat: "strength", title: "Force — haut du corps & grip", tag: `Tirage, épaules · ${goal}`, duration: 60, blocks: [
     { label: "Échauffement", items: ["8 min rameur léger + rotations épaules + élastique"] },
     { label: "Bloc principal", items }, ...(focus.length ? [{ label: "Facteur limitant ciblé", items: focus }] : []),
-    { label: "Gainage", items: ["3 × 30 s gainage latéral / côté + suspension barre 3 × max"] }, ] }; }
+    useMetcon ? metconBlock(c) : { label: "Gainage", items: ["3 × 30 s gainage latéral / côté + suspension barre 3 × max"] }, ] }; }
 function sCompromised(c) { const rounds = c.phaseKey === "build" ? 4 : 5;
   return { cat: "hyrox", title: "Course compromise", tag: "Courir sur jambes fatiguées", duration: 55, blocks: [
     { label: "Échauffement", items: ["12 min progressif + gammes"] },
@@ -295,7 +366,7 @@ function generateProgram(form, limiters) {
     const isRaceWeek = i === totalWeeks - 1;
     const isDeload = !isRaceWeek && phaseKey !== "taper" && (i + 1) % 4 === 0 && i < totalWeeks - 2;
     const cats = weeklyCategories(form.daysPerWeek, i);
-    const ctx = { z, phaseKey, pp, wk: i, equip, w, weak };
+    const ctx = { z, phaseKey, pp, wk: i, equip, w, weak, orm: form.oneRM || {}, maxPull: form.maxPullups, maxBurp: form.maxBurpees };
     let sessions = cats.map((c) => GEN[c]({ ...ctx }));
     if (phaseKey === "taper") {
       sessions = sessions.map((s) => s.cat === "strength" ? { ...s, duration: Math.round(s.duration * 0.6), tag: "Entretien léger", blocks: s.blocks.slice(0, 2) } : s.cat === "hyrox" ? sRaceRehearsal(ctx) : GEN.easyRun(ctx));
@@ -460,12 +531,16 @@ function Wizard({ onGenerate, account }) {
   const [strengthLevel, setStrengthLevel] = useState(3);
   const [experience, setExperience] = useState("intermediaire");
   const [equipment, setEquipment] = useState("gym");
+  const [oneRM, setOneRM] = useState({ squat: "", deadlift: "", bench: "", shoulder: "" });
+  const [maxPullups, setMaxPullups] = useState("");
+  const [maxBurpees, setMaxBurpees] = useState("");
   const [weakStations, setWeak] = useState([]);
   const [daysPerWeek, setDays] = useState(4);
 
   const weeks = useMemo(() => raceDate ? Math.floor((new Date(raceDate) - new Date()) / (6048e5)) : null, [raceDate]);
   const toggleWeak = (k) => setWeak((p) => p.includes(k) ? p.filter((x) => x !== k) : p.length >= 4 ? p : [...p, k]);
   const setST = (k, v) => setStationTimes((p) => ({ ...p, [k]: v }));
+  const setRM = (k, v) => setOneRM((p) => ({ ...p, [k]: v }));
 
   const canNext = () => {
     if (step === 0) return weeks !== null && weeks >= 1;
@@ -476,7 +551,7 @@ function Wizard({ onGenerate, account }) {
     weeks: Math.min(24, Math.max(2, weeks)), division, goal, eventCity,
     fiveKTime: knows5k === "yes" ? fiveKTime : "", runLevel,
     doneHyrox, hyroxFinish, hyroxRunAvg, stationTimes,
-    strengthLevel, experience, equipment, weakStations, daysPerWeek,
+    strengthLevel, experience, equipment, oneRM, maxPullups, maxBurpees, weakStations, daysPerWeek,
   });
 
   return (<div className="card wizard">
@@ -567,6 +642,19 @@ function Wizard({ onGenerate, account }) {
         <div className="grid3">{[["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"]].map(([k, l]) => (<button key={k} className={`chip ${experience === k ? "on" : ""}`} onClick={() => setExperience(k)}>{l}</button>))}</div>
         <h3 className="q mt">Matériel disponible</h3>
         <div className="grid3">{[["gym", "Salle complète"], ["limited", "Matériel limité"], ["home", "Maison"]].map(([k, l]) => (<button key={k} className={`chip ${equipment === k ? "on" : ""}`} onClick={() => setEquipment(k)}>{l}</button>))}</div>
+        <h3 className="q mt">Tes 1RM <span className="subtle">(optionnel — pour des charges précises en kg)</span></h3>
+        <div className="st-times">
+          {[["squat", "Back Squat"], ["deadlift", "Soulevé de terre"], ["bench", "Développé couché"], ["shoulder", "Shoulder Press"]].map(([k, l]) => (
+            <label key={k} className="st-time"><span className="st-name">{l}</span>
+              <input className="input mono sm" inputMode="numeric" placeholder="kg" value={oneRM[k]} onChange={(e) => setRM(k, e.target.value)} /></label>))}
+        </div>
+        <div className="st-times" style={{ marginTop: 9 }}>
+          <label className="st-time"><span className="st-name">Tractions max (reps)</span>
+            <input className="input mono sm" inputMode="numeric" placeholder="ex. 12" value={maxPullups} onChange={(e) => setMaxPullups(e.target.value)} /></label>
+          <label className="st-time"><span className="st-name">Burpees en 1 min</span>
+            <input className="input mono sm" inputMode="numeric" placeholder="ex. 20" value={maxBurpees} onChange={(e) => setMaxBurpees(e.target.value)} /></label>
+        </div>
+        <p className="hint subtle">Si tu les renseignes, les séances de force afficheront les charges exactes (% de ton 1RM) et le volume de tractions sera calé sur ton max. Sinon, le programme reste en repères « lourd / 4×5 ».</p>
         <h3 className="q mt">Tes points faibles ressentis <span className="subtle">(jusqu'à 4)</span></h3>
         <div className="grid-st">{STATIONS.map((s) => (<button key={s.key} className={`chip sm ${weakStations.includes(s.key) ? "on" : ""}`} onClick={() => toggleWeak(s.key)}>{s.name}</button>))}</div>
       </>)}
