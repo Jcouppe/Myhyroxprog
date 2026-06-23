@@ -1,10 +1,163 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useContext } from "react";
 import {
   Activity, Calendar, ChevronDown, Dumbbell, Footprints, Timer,
   Target, Flame, RotateCcw, Printer, Wind, Anchor, ArrowRight, Check,
   MapPin, Gauge, Zap, Lock, User, LogOut, CheckCircle2, Circle,
   TrendingUp, Sparkles, X
 } from "lucide-react";
+
+/* =====================================================================
+   i18n — système de langues (FR par défaut, EN en option)
+   La clé de traduction EST le texte français ; si une entrée EN existe,
+   elle est utilisée. Sinon on retombe sur le français (aucun texte cassé).
+   ===================================================================== */
+const LangContext = React.createContext("fr");
+const I18N = { en: {
+  // Nav
+  "Se connecter": "Sign in", "Commencer": "Start", "Déconnexion": "Sign out",
+  "Mon programme": "My program", "Retour à l'accueil": "Back to home",
+  // Landing
+  "Programme généré sur-mesure": "Custom-built program",
+  "Ton plan Hyrox,": "Your Hyrox plan,", "calé sur tes chiffres.": "built on your numbers.",
+  "Renseigne tes allures, ta force et tes temps par atelier. On calcule tes facteurs limitants et on construit un programme semaine par semaine, jour par jour — de la fondation à l'affûtage.": "Enter your paces, your strength and your station times. We compute your limiting factors and build a program week by week, day by day — from base to taper.",
+  "Générer mon programme": "Generate my program",
+  "Première semaine offerte · sans carte": "First week free · no card",
+  "8 km · 8 stations · 1 plan": "8 km · 8 stations · 1 plan",
+  "Fondation": "Base", "Développement": "Build", "Spécifique": "Specific", "Affûtage": "Taper",
+  "Semaines 2 → 12": "Weeks 2 → 12",
+  "Facteurs limitants": "Limiting factors",
+  "Tes temps par atelier révèlent ce qui te coûte le plus. Le plan attaque ces points en priorité.": "Your station times reveal what costs you most. The plan targets those first.",
+  "Allures calculées": "Calculated paces",
+  "À partir de ton 5 km ou de ta course Hyrox, chaque séance reçoit son allure précise.": "From your 5 km or your Hyrox race, every session gets its exact pace.",
+  "Semaine par semaine": "Week by week",
+  "Une vraie périodisation : fondation, développement, spécifique, affûtage jusqu'au jour J.": "Real periodization: base, build, specific, taper up to race day.",
+  "Suivi des séances": "Session tracking",
+  "Coche chaque séance réalisée et garde le fil de ta progression jusqu'à la course.": "Tick off each completed session and follow your progress to race day.",
+  "Comment ça marche": "How it works",
+  "Tes données": "Your data", "Allures, force, matériel, temps Hyrox par atelier.": "Paces, strength, gear, Hyrox station times.",
+  "L'analyse": "The analysis", "On situe ton niveau et tes facteurs limitants.": "We pinpoint your level and your limiting factors.",
+  "Ton plan": "Your plan", "Un programme daté, ajusté chaque semaine jusqu'à la course.": "A dated program, adjusted every week up to the race.",
+  "Commencer maintenant": "Start now",
+  // Wizard steps
+  "La course": "The race", "Course à pied": "Running", "Performances": "Performance",
+  "Force & matériel": "Strength & gear", "Disponibilité": "Availability",
+  "Construisons ton programme": "Let's build your program",
+  "Retour": "Back", "Continuer": "Continue",
+  // Wizard content
+  "Quand a lieu ta course ?": "When is your race?",
+  "Choisir une épreuve": "Pick an event", "Saisir une date": "Enter a date",
+  "Épreuve HYROX": "HYROX event", "— Sélectionne ton épreuve —": "— Select your event —",
+  "Date de l'épreuve": "Race date",
+  "Ta division": "Your division", "Ton objectif": "Your goal",
+  "Terminer": "Finish", "Temps cible": "Target time", "Performance": "Performance",
+  "Femme — Open": "Women — Open", "Homme — Open": "Men — Open", "Femme — Pro": "Women — Pro", "Homme — Pro": "Men — Pro",
+  "Connais-tu ton temps sur 5 km ?": "Do you know your 5 km time?",
+  "Oui": "Yes", "Non, j'estime": "No, estimate it",
+  "Temps sur 5 km (mm:ss)": "5 km time (mm:ss)", "Format mm:ss, ex. 24:30": "Format mm:ss, e.g. 24:30",
+  "Mon niveau en course": "My running level",
+  "Débutant (~30 min)": "Beginner (~30 min)", "Intermédiaire (~25 min)": "Intermediate (~25 min)",
+  "Confirmé (~21 min)": "Advanced (~21 min)", "Rapide (~18 min)": "Fast (~18 min)",
+  "Sert à calculer toutes tes allures d'entraînement.": "Used to compute all your training paces.",
+  "As-tu déjà fait un Hyrox ?": "Have you done a Hyrox before?",
+  "Tes temps réels affinent le plan et révèlent tes facteurs limitants.": "Your real times refine the plan and reveal your limiting factors.",
+  "Pas encore": "Not yet",
+  "Temps final (mm:ss ou h:mm)": "Finish time (mm:ss or h:mm)",
+  "Allure moyenne des runs (/km)": "Average run pace (/km)",
+  "Renseigne au moins 2 ateliers pour activer la détection automatique des facteurs limitants.": "Enter at least 2 stations to enable automatic limiting-factor detection.",
+  "Ton niveau de force": "Your strength level",
+  "Expérience fitness fonctionnel": "Functional fitness experience",
+  "Débutant": "Beginner", "Intermédiaire": "Intermediate", "Avancé": "Advanced",
+  "Matériel disponible": "Available gear", "Salle complète": "Full gym", "Matériel limité": "Limited gear", "Maison": "Home",
+  "Tractions max (reps)": "Max pull-ups (reps)", "Burpees en 1 min": "Burpees in 1 min",
+  "Si tu les renseignes, les séances de force afficheront les charges exactes (% de ton 1RM) et le volume de tractions sera calé sur ton max. Sinon, le programme reste en repères « lourd / 4×5 ».": "If you fill these in, strength sessions will show exact loads (% of your 1RM) and pull-up volume will scale to your max. Otherwise the program stays in 'heavy / 4×5' cues.",
+  "Combien de jours par semaine ?": "How many days per week?", "jours": "days",
+  "Récapitulatif": "Summary", "semaines": "weeks",
+  "Force": "Strength", "salle": "gym", "limité": "limited", "maison": "home",
+  // Levels / intensity / phases labels
+  "Débutant ": "Beginner", "Confirmé": "Advanced", "Élite": "Elite",
+  "Très allégé": "Much lighter", "Allégé": "Lighter", "Standard": "Standard", "Soutenu": "Hard", "Très soutenu": "Very hard",
+  // Dashboard
+  "Ton plan personnalisé": "Your personalized plan", "Route vers le départ": "Road to the start",
+  "semaines avant la course": "weeks to race", "Progression": "Progress", "séances": "sessions",
+  "Division": "Division", "Intensité actuelle": "Current intensity", "Séances / sem.": "Sessions / wk",
+  "Allure souple": "Easy pace", "Allure tempo": "Tempo pace", "Allure fractionné": "Interval pace", "Allure course Hyrox": "Hyrox race pace",
+  "Ton niveau de course": "Your running level", "VMA estimée": "Estimated vVO₂max",
+  "5 km estimé": "Estimated 5 km", "Allure 5 km": "5 km pace", "vs médiane division": "vs division median",
+  "Les 4 phases": "The 4 phases",
+  "Poids de référence": "Reference weights",
+  "Tes facteurs limitants": "Your limiting factors", "point faible": "weak point",
+  "Imprimer / PDF": "Print / PDF", "Nouveau programme": "New program",
+  "Débloquer": "Unlock", "Débloquer le programme": "Unlock the program", "Débloque tout ton plan": "Unlock your whole plan",
+  "Réajuster mon plan": "Re-tune my plan", "Ressenti :": "How it felt:",
+  "Trop facile": "Too easy", "Parfait": "Just right", "Trop dur": "Too hard",
+  // Modals
+  "Connexion à ton espace": "Sign in to your space",
+  "Ton programme et tes séances cochées sont gardés sur cet appareil.": "Your program and ticked sessions are kept on this device.",
+  "Prénom": "First name", "E-mail": "Email",
+  "Programme complet": "Full program", "/ mois": "/ month",
+  "Toutes les semaines jusqu'à ta course": "Every week up to your race",
+  "Suivi des séances et progression": "Session tracking and progress",
+  "Allures et facteurs limitants détaillés": "Detailed paces and limiting factors",
+  // Footer
+  "MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.": "MyHyroxProg — training generator · paces and loads are guides to adjust to how you feel.",
+  // EN-mode note
+  "Les détails des séances sont affichés en français pour l'instant — leur traduction arrive très bientôt.": "Session details are shown in French for now — their translation is coming very soon.",
+  // Wizard — Hyrox passé (solo Open/Pro)
+  "As-tu déjà fait un Hyrox en solo ?": "Have you done a solo Hyrox before?",
+  "Tes temps réels affinent le plan et révèlent tes facteurs limitants. Solo uniquement : les temps en duo ou relais ne sont pas comparables.": "Your real times refine the plan and reveal your limiting factors. Solo only: doubles or relay times aren't comparable.",
+  "Oui, en solo": "Yes, solo", "Format de ta course solo": "Your solo race format",
+  "Solo Open": "Solo Open", "Solo Pro": "Solo Pro",
+  "Tes temps seront comparés aux médianes de cette division pour situer tes points faibles.": "Your times will be compared to this division's medians to locate your weak points.",
+  "Tes temps par atelier": "Your station times", "(facultatif, mm:ss)": "(optional, mm:ss)", "(jusqu'à 4)": "(up to 4)",
+  "Soulevé de terre": "Deadlift", "Développé couché": "Bench press",
+  "semaine": "week", "avant la course": "to race", "Rameur": "Rower", "récup": "deload",
+  "Ton épreuve n'est pas listée (date pas encore publiée) ?": "Event not listed (date not published yet)?",
+  "Trouve-la sur le calendrier officiel": "Find it on the official calendar",
+  "puis saisis la date à la main.": "then enter the date manually.",
+  // Phases
+  "On bâtit le moteur aérobie et la base de force.": "Build the aerobic engine and strength base.",
+  "Montée en intensité, force et premières simulations.": "Rising intensity, strength and first simulations.",
+  "On devient Hyrox : course fatiguée et simulations.": "Becoming Hyrox: running fatigued and simulations.",
+  "On réduit le volume, on garde le tranchant. Jour J.": "Cut volume, keep the edge. Race day.",
+  // Days
+  "Lun": "Mon", "Mar": "Tue", "Mer": "Wed", "Jeu": "Thu", "Ven": "Fri", "Sam": "Sat", "Dim": "Sun",
+  // Run level hints
+  "Ta course est un atout : sur Hyrox, courir plus vite que la médiane fait gagner de précieuses minutes (la course = ~51 % du temps total).": "Running is an asset: in Hyrox, running faster than the median saves precious minutes (running ≈ 51% of total time).",
+  "La course est ton plus gros levier : ~51 % du temps total se joue sur les 8 km. Le plan met l'accent sur le volume facile et l'allure cible.": "Running is your biggest lever: ~51% of total time is on the 8 km. The plan emphasizes easy volume and target pace.",
+  "Niveau estimé depuis ta catégorie déclarée — renseigne ton temps sur 5 km pour plus de précision.": "Level estimated from your declared category — enter your 5 km time for more accuracy.",
+  // Limiters
+  "Basés sur tes points faibles ressentis :": "Based on your perceived weak points:",
+  "aucun précisé": "none specified",
+  "Renseigne tes temps par atelier (étape Performances) pour une détection automatique précise.": "Enter your station times (Performance step) for accurate automatic detection.",
+  "Tu perds surtout du temps en course : priorité au volume et à la course fatiguée.": "You lose most time on the run: priority on volume and running fatigued.",
+  "Tu perds surtout sur les ateliers : priorité à la force et aux simulations.": "You lose most on the stations: priority on strength and simulations.",
+  "Course et ateliers sont équilibrés : on travaille les deux.": "Running and stations are balanced: we train both.",
+  "Le programme attaque en priorité :": "The program targets first:",
+  "Écart par rapport à la médiane estimée de ta division (− = plus rapide, + = plus lent). Tes points faibles sont les ateliers où tu es le plus en retard par rapport à ton propre niveau moyen, pas dans l'absolu. Médianes indicatives issues d'analyses publiques de résultats HYROX — à affiner.": "Gap vs your division's estimated median (− = faster, + = slower). Your weak points are the stations where you lag most relative to your own average level, not in absolute terms. Indicative medians from public HYROX results analyses — to refine.",
+  // Session card
+  "Repos": "Rest", "Décocher": "Uncheck", "Marquer comme fait": "Mark as done",
+  // Week card
+  "Débloque le programme complet pour voir cette semaine": "Unlock the full program to see this week",
+  // Dashboard dynamic
+  "Cap sur {city}": "Heading to {city}",
+  "Tes retours montrent que c'est trop facile ({n} séances faciles). On peut monter l'intensité d'un cran.": "Your feedback shows it's too easy ({n} easy sessions). We can raise intensity one notch.",
+  "Tes retours montrent que c'est trop dur ({n} séances dures). On peut alléger d'un cran.": "Your feedback shows it's too hard ({n} hard sessions). We can ease off one notch.",
+  "Retours pris en compte : intensité « {lvl} » bien calée pour l'instant.": "Feedback noted: intensity '{lvl}' is well set for now.",
+  "Semaine 1 offerte. Débloque les {n} semaines suivantes + le suivi complet.": "Week 1 free. Unlock the next {n} weeks + full tracking.",
+  "Valeurs indicatives saison 2025/26 (poids du traîneau inclus). Vérifie toujours les standards officiels de ta course sur le site HYROX.": "Indicative values for the 2025/26 season (sled weight included). Always check your race's official standards on the HYROX site.",
+  "Programme sauvegardé sur cet appareil. Plan d'entraînement général, pas un avis médical : en cas de doute, consulte un professionnel.": "Program saved on this device. General training plan, not medical advice: if in doubt, consult a professional.",
+  // Modals extra
+  "Prototype : aucune donnée n'est envoyée sur internet. La connexion multi-appareils arrivera avec la version sécurisée.": "Prototype: no data is sent online. Multi-device sign-in will come with the secure version.",
+  "La semaine 1 est offerte. Débloque les semaines suivantes, le suivi complet et les ajustements jusqu'au jour J.": "Week 1 is free. Unlock the following weeks, full tracking and adjustments up to race day.",
+  "Prototype : le déblocage est simulé sur cet appareil. Le paiement réel (Stripe) sera branché à l'étape suivante.": "Prototype: unlocking is simulated on this device. Real payment (Stripe) will be wired in the next step.",
+} };
+function tr(lang, s, vars) {
+  let out = (lang === "en" && I18N.en[s] !== undefined) ? I18N.en[s] : s;
+  if (vars) for (const k in vars) out = out.split("{" + k + "}").join(vars[k]);
+  return out;
+}
+function useT() { const lang = useContext(LangContext); return (s, vars) => tr(lang, s, vars); }
+
 
 /* =====================================================================
    MyHyroxProg v2 — générateur de programme Hyrox personnalisé
@@ -174,7 +327,10 @@ function stationDrill(key, w, equip) {
    puis on repère les ateliers où l'athlète est le plus en retard PAR RAPPORT
    À SON PROPRE NIVEAU MOYEN. C'est ça, un vrai facteur limitant. */
 function analyzeLimiters(form) {
-  const ref = REF[form.division] || REF.homme_open;
+  // On compare aux médianes de la division où les temps ont été réalisés (course solo passée)
+  const gender = (DIVISIONS[form.division] || {}).gender === "F" ? "femme" : "homme";
+  const refKey = form.pastFormat ? `${gender}_${form.pastFormat}` : form.division;
+  const ref = REF[refKey] || REF[form.division] || REF.homme_open;
   const times = form.stationTimes || {};
   const entries = STATIONS.map((s) => {
     const sec = mmssToSec(times[s.key]);
@@ -433,20 +589,24 @@ function RhythmStrip({ height = 14 }) {
 }
 
 /* ---------------- Barre de navigation ---------------- */
-function Nav({ account, onLogin, onLogout, onHome, onStart, hasProgram, onProgram }) {
+function Nav({ account, onLogin, onLogout, onHome, onStart, hasProgram, onProgram, lang, onToggleLang }) {
+  const t = useT();
   return (<nav className="nav">
-    <button className="brand" onClick={onHome} title="Retour à l'accueil">
+    <button className="brand" onClick={onHome} title={t("Retour à l'accueil")}>
       <span className="logo"><Activity size={17} /></span>
       <span className="brand-name">MyHyrox<span className="brand-accent">Prog</span></span>
     </button>
     <div className="nav-right">
-      {hasProgram && <button className="nav-link" onClick={onProgram}>Mon programme</button>}
+      <button className="lang-toggle" onClick={onToggleLang} title="FR / EN" aria-label="Language">
+        <span className={lang === "fr" ? "on" : ""}>FR</span><span className="sep">/</span><span className={lang === "en" ? "on" : ""}>EN</span>
+      </button>
+      {hasProgram && <button className="nav-link" onClick={onProgram}>{t("Mon programme")}</button>}
       {account ? (<>
         <span className="nav-user"><User size={14} /> {account.name}</span>
-        <button className="btn ghost sm" onClick={onLogout}><LogOut size={14} /> Déconnexion</button>
+        <button className="btn ghost sm" onClick={onLogout}><LogOut size={14} /> {t("Déconnexion")}</button>
       </>) : (<>
-        <button className="nav-link" onClick={onLogin}>Se connecter</button>
-        <button className="btn primary sm" onClick={onStart}>Commencer</button>
+        <button className="nav-link" onClick={onLogin}>{t("Se connecter")}</button>
+        <button className="btn primary sm" onClick={onStart}>{t("Commencer")}</button>
       </>)}
     </div>
   </nav>);
@@ -454,28 +614,29 @@ function Nav({ account, onLogin, onLogout, onHome, onStart, hasProgram, onProgra
 
 /* ---------------- Landing ---------------- */
 function Landing({ onStart }) {
+  const t = useT();
   return (<div className="landing">
     <section className="hero">
       <div className="hero-copy">
-        <span className="badge"><Sparkles size={13} /> Programme généré sur-mesure</span>
-        <h1 className="hero-title">Ton plan Hyrox,<br /><span className="hl">calé sur tes chiffres.</span></h1>
-        <p className="hero-sub">Renseigne tes allures, ta force et tes temps par atelier. On calcule tes facteurs limitants et on construit un programme semaine par semaine, jour par jour — de la fondation à l'affûtage.</p>
+        <span className="badge"><Sparkles size={13} /> {t("Programme généré sur-mesure")}</span>
+        <h1 className="hero-title">{t("Ton plan Hyrox,")}<br /><span className="hl">{t("calé sur tes chiffres.")}</span></h1>
+        <p className="hero-sub">{t("Renseigne tes allures, ta force et tes temps par atelier. On calcule tes facteurs limitants et on construit un programme semaine par semaine, jour par jour — de la fondation à l'affûtage.")}</p>
         <div className="hero-cta">
-          <button className="btn primary lg" onClick={onStart}>Générer mon programme <ArrowRight size={17} /></button>
-          <span className="hero-note">Première semaine offerte · sans carte</span>
+          <button className="btn primary lg" onClick={onStart}>{t("Générer mon programme")} <ArrowRight size={17} /></button>
+          <span className="hero-note">{t("Première semaine offerte · sans carte")}</span>
         </div>
         <RhythmStrip height={16} />
-        <div className="hero-legend mono">8 km · 8 stations · 1 plan</div>
+        <div className="hero-legend mono">{t("8 km · 8 stations · 1 plan")}</div>
       </div>
       <div className="hero-app" aria-hidden="true">
         <div className="app-card">
           <div className="ac-head"><span className="ac-dot" /><span className="ac-dot" /><span className="ac-dot" /></div>
           <div className="ac-body">
-            <div className="ac-row"><span className="ac-week mono">S01</span><span className="ac-chip" style={{ "--ch": "var(--cobalt)" }}>Fondation</span><span className="ac-h mono">5,2 h</span></div>
-            <div className="ac-day"><span className="ac-cat" style={{ background: "var(--cobalt)" }}><Footprints size={11} /></span><span className="ac-t">Fractionné — 6 × 800 m</span><CheckCircle2 size={15} className="ac-done" /></div>
-            <div className="ac-day"><span className="ac-cat" style={{ background: "var(--ink)" }}><Dumbbell size={11} /></span><span className="ac-t">Force — bas du corps</span><CheckCircle2 size={15} className="ac-done" /></div>
-            <div className="ac-day"><span className="ac-cat" style={{ background: "var(--orange)" }}><Flame size={11} /></span><span className="ac-t">Simulation Hyrox</span><Circle size={15} className="ac-todo" /></div>
-            <div className="ac-locked"><Lock size={13} /> Semaines 2 → 12</div>
+            <div className="ac-row"><span className="ac-week mono">S01</span><span className="ac-chip" style={{ "--ch": "var(--cobalt)" }}>{t("Fondation")}</span><span className="ac-h mono">5,2 h</span></div>
+            <div className="ac-day"><span className="ac-cat" style={{ background: "var(--cobalt)" }}><Footprints size={11} /></span><span className="ac-t">{t("Fractionné — 6 × 800 m")}</span><CheckCircle2 size={15} className="ac-done" /></div>
+            <div className="ac-day"><span className="ac-cat" style={{ background: "var(--ink)" }}><Dumbbell size={11} /></span><span className="ac-t">{t("Force — bas du corps")}</span><CheckCircle2 size={15} className="ac-done" /></div>
+            <div className="ac-day"><span className="ac-cat" style={{ background: "var(--orange)" }}><Flame size={11} /></span><span className="ac-t">{t("Simulation Hyrox")}</span><Circle size={15} className="ac-todo" /></div>
+            <div className="ac-locked"><Lock size={13} /> {t("Semaines 2 → 12")}</div>
           </div>
         </div>
       </div>
@@ -489,57 +650,59 @@ function Landing({ onStart }) {
         { Icon: CheckCircle2, t: "Suivi des séances", d: "Coche chaque séance réalisée et garde le fil de ta progression jusqu'à la course." },
       ].map((f, i) => (<div key={i} className="feat">
         <span className="feat-ic"><f.Icon size={18} /></span>
-        <h3>{f.t}</h3><p>{f.d}</p>
+        <h3>{t(f.t)}</h3><p>{t(f.d)}</p>
       </div>))}
     </section>
 
     <section className="how">
-      <span className="eyebrow">Comment ça marche</span>
+      <span className="eyebrow">{t("Comment ça marche")}</span>
       <div className="how-steps">
-        {[["Tes données", "Allures, force, matériel, temps Hyrox par atelier."], ["L'analyse", "On situe ton niveau et tes facteurs limitants."], ["Ton plan", "Un programme daté, ajusté chaque semaine jusqu'à la course."]].map(([t, d], i) => (
-          <div key={i} className="how-step"><span className="how-num mono">{pad(i + 1)}</span><div><h4>{t}</h4><p>{d}</p></div></div>
+        {[["Tes données", "Allures, force, matériel, temps Hyrox par atelier."], ["L'analyse", "On situe ton niveau et tes facteurs limitants."], ["Ton plan", "Un programme daté, ajusté chaque semaine jusqu'à la course."]].map(([ti, d], i) => (
+          <div key={i} className="how-step"><span className="how-num mono">{pad(i + 1)}</span><div><h4>{t(ti)}</h4><p>{t(d)}</p></div></div>
         ))}
       </div>
-      <button className="btn primary lg center-btn" onClick={onStart}>Commencer maintenant <ArrowRight size={17} /></button>
+      <button className="btn primary lg center-btn" onClick={onStart}>{t("Commencer maintenant")} <ArrowRight size={17} /></button>
     </section>
   </div>);
 }
 
 /* ---------------- Modale connexion (prototype local) ---------------- */
 function AuthModal({ onClose, onConnect }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   return (<div className="modal-bg" onClick={onClose}>
     <div className="modal" onClick={(e) => e.stopPropagation()}>
       <button className="modal-x" onClick={onClose} aria-label="Fermer"><X size={18} /></button>
-      <h3 className="modal-title">Connexion à ton espace</h3>
-      <p className="modal-sub">Ton programme et tes séances cochées sont gardés sur cet appareil.</p>
-      <label className="field"><span className="field-label">Prénom</span>
+      <h3 className="modal-title">{t("Connexion à ton espace")}</h3>
+      <p className="modal-sub">{t("Ton programme et tes séances cochées sont gardés sur cet appareil.")}</p>
+      <label className="field"><span className="field-label">{t("Prénom")}</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Alex" /></label>
-      <label className="field"><span className="field-label">E-mail</span>
+      <label className="field"><span className="field-label">{t("E-mail")}</span>
         <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="alex@exemple.fr" /></label>
-      <button className="btn primary full" disabled={!name.trim()} onClick={() => onConnect({ name: name.trim(), email: email.trim() })}>Continuer</button>
-      <p className="hint subtle">Prototype : aucune donnée n'est envoyée sur internet. La connexion multi-appareils arrivera avec la version sécurisée.</p>
+      <button className="btn primary full" disabled={!name.trim()} onClick={() => onConnect({ name: name.trim(), email: email.trim() })}>{t("Continuer")}</button>
+      <p className="hint subtle">{t("Prototype : aucune donnée n'est envoyée sur internet. La connexion multi-appareils arrivera avec la version sécurisée.")}</p>
     </div>
   </div>);
 }
 
 /* ---------------- Paywall ---------------- */
 function Paywall({ onClose, onUnlock }) {
+  const t = useT();
   return (<div className="modal-bg" onClick={onClose}>
     <div className="modal" onClick={(e) => e.stopPropagation()}>
       <button className="modal-x" onClick={onClose} aria-label="Fermer"><X size={18} /></button>
-      <span className="badge"><Zap size={13} /> Programme complet</span>
-      <h3 className="modal-title">Débloque tout ton plan</h3>
-      <p className="modal-sub">La semaine 1 est offerte. Débloque les semaines suivantes, le suivi complet et les ajustements jusqu'au jour J.</p>
-      <div className="price"><span className="price-num mono">9,90 €</span><span className="price-per">/ mois</span></div>
+      <span className="badge"><Zap size={13} /> {t("Programme complet")}</span>
+      <h3 className="modal-title">{t("Débloque tout ton plan")}</h3>
+      <p className="modal-sub">{t("La semaine 1 est offerte. Débloque les semaines suivantes, le suivi complet et les ajustements jusqu'au jour J.")}</p>
+      <div className="price"><span className="price-num mono">9,90 €</span><span className="price-per">{t("/ mois")}</span></div>
       <ul className="price-list">
-        <li><Check size={15} /> Toutes les semaines jusqu'à ta course</li>
-        <li><Check size={15} /> Suivi des séances et progression</li>
-        <li><Check size={15} /> Allures et facteurs limitants détaillés</li>
+        <li><Check size={15} /> {t("Toutes les semaines jusqu'à ta course")}</li>
+        <li><Check size={15} /> {t("Suivi des séances et progression")}</li>
+        <li><Check size={15} /> {t("Allures et facteurs limitants détaillés")}</li>
       </ul>
-      <button className="btn primary full" onClick={onUnlock}>Débloquer le programme</button>
-      <p className="hint subtle">Prototype : le déblocage est simulé sur cet appareil. Le paiement réel (Stripe) sera branché à l'étape suivante.</p>
+      <button className="btn primary full" onClick={onUnlock}>{t("Débloquer le programme")}</button>
+      <p className="hint subtle">{t("Prototype : le déblocage est simulé sur cet appareil. Le paiement réel (Stripe) sera branché à l'étape suivante.")}</p>
     </div>
   </div>);
 }
@@ -557,6 +720,7 @@ function Wizard({ onGenerate, account }) {
   const [fiveKTime, setFiveKTime] = useState("");
   const [runLevel, setRunLevel] = useState("intermediaire");
   const [doneHyrox, setDoneHyrox] = useState("no");
+  const [pastFormat, setPastFormat] = useState("open"); // open | pro (solo uniquement)
   const [hyroxFinish, setHyroxFinish] = useState("");
   const [hyroxRunAvg, setHyroxRunAvg] = useState("");
   const [stationTimes, setStationTimes] = useState({});
@@ -579,30 +743,31 @@ function Wizard({ onGenerate, account }) {
     if (step === 1) return knows5k === "no" || mmssToSec(fiveKTime) !== null;
     return true;
   };
+  const t = useT();
   const submit = () => onGenerate({
     weeks: Math.min(24, Math.max(2, weeks)), division, goal, eventCity,
     fiveKTime: knows5k === "yes" ? fiveKTime : "", runLevel,
-    doneHyrox, hyroxFinish, hyroxRunAvg, stationTimes,
+    doneHyrox, pastFormat, hyroxFinish, hyroxRunAvg, stationTimes,
     strengthLevel, experience, equipment, oneRM, maxPullups, maxBurpees, weakStations, daysPerWeek,
   });
 
   return (<div className="card wizard">
     <div className="wiz-steps">
       {STEPS.map((s, i) => (<div key={s} className={`wiz-step ${i === step ? "on" : i < step ? "done" : ""}`}>
-        <span className="wiz-num">{i < step ? <Check size={12} /> : i + 1}</span><span className="wiz-label">{s}</span></div>))}
+        <span className="wiz-num">{i < step ? <Check size={12} /> : i + 1}</span><span className="wiz-label">{t(s)}</span></div>))}
     </div>
     <div className="wiz-body">
       {step === 0 && (<>
-        <h3 className="q">Quand a lieu ta course&nbsp;?</h3>
+        <h3 className="q">{t("Quand a lieu ta course ?")}</h3>
         <div className="grid2">
-          <button className={`chip ${dateMode === "event" ? "on" : ""}`} onClick={() => setDateMode("event")}>Choisir une épreuve</button>
-          <button className={`chip ${dateMode === "manual" ? "on" : ""}`} onClick={() => setDateMode("manual")}>Saisir une date</button>
+          <button className={`chip ${dateMode === "event" ? "on" : ""}`} onClick={() => setDateMode("event")}>{t("Choisir une épreuve")}</button>
+          <button className={`chip ${dateMode === "manual" ? "on" : ""}`} onClick={() => setDateMode("manual")}>{t("Saisir une date")}</button>
         </div>
         {dateMode === "event" ? (
-          <label className="field mt"><span className="field-label"><MapPin size={14} /> Épreuve HYROX</span>
+          <label className="field mt"><span className="field-label"><MapPin size={14} /> {t("Épreuve HYROX")}</span>
             <select className="input" value={eventCity}
               onChange={(e) => { const ev = EVENTS.find((x) => x.city === e.target.value); setEventCity(e.target.value); if (ev) setRaceDate(ev.date); }}>
-              <option value="">— Sélectionne ton épreuve —</option>
+              <option value="">{t("— Sélectionne ton épreuve —")}</option>
               {EVENT_REGIONS.map((r) => (
                 <optgroup key={r} label={r}>
                   {EVENTS.filter((ev) => ev.region === r && new Date(ev.date) > new Date())
@@ -611,10 +776,10 @@ function Wizard({ onGenerate, account }) {
                 </optgroup>
               ))}
             </select>
-            <span className="hint subtle">Ton épreuve n'est pas listée (date pas encore publiée) ? <a href="https://hyrox.com/find-my-race/" target="_blank" rel="noreferrer" className="link">Trouve-la sur le calendrier officiel</a> puis saisis la date à la main.</span>
+            <span className="hint subtle">{t("Ton épreuve n'est pas listée (date pas encore publiée) ?")} <a href="https://hyrox.com/find-my-race/" target="_blank" rel="noreferrer" className="link">{t("Trouve-la sur le calendrier officiel")}</a> {t("puis saisis la date à la main.")}</span>
           </label>
         ) : (
-          <label className="field mt"><span className="field-label"><Calendar size={14} /> Date de l'épreuve</span>
+          <label className="field mt"><span className="field-label"><Calendar size={14} /> {t("Date de l'épreuve")}</span>
             <input type="date" value={raceDate} onChange={(e) => { setRaceDate(e.target.value); setEventCity(""); }} className="input" /></label>
         )}
         {weeks !== null && (<p className={`hint ${weeks < 2 ? "warn" : ""}`}>
@@ -622,155 +787,161 @@ function Wizard({ onGenerate, account }) {
             : weeks < 4 ? `${weeks} semaine(s) : c'est court. Préparation finale ciblée.`
             : weeks > 24 ? `${weeks} semaines : plan plafonné à 24 semaines.`
             : `${weeks} semaines de préparation. Parfait pour progresser.`}</p>)}
-        <h3 className="q mt">Ta division</h3>
-        <div className="grid2">{Object.entries(DIVISIONS).map(([k, v]) => (<button key={k} className={`chip ${division === k ? "on" : ""}`} onClick={() => setDivision(k)}>{v.label}</button>))}</div>
-        <h3 className="q mt">Ton objectif</h3>
-        <div className="grid3">{[["finir", "Terminer"], ["temps", "Temps cible"], ["perf", "Performance"]].map(([k, l]) => (<button key={k} className={`chip ${goal === k ? "on" : ""}`} onClick={() => setGoal(k)}>{l}</button>))}</div>
+        <h3 className="q mt">{t("Ta division")}</h3>
+        <div className="grid2">{Object.entries(DIVISIONS).map(([k, v]) => (<button key={k} className={`chip ${division === k ? "on" : ""}`} onClick={() => setDivision(k)}>{t(v.label)}</button>))}</div>
+        <h3 className="q mt">{t("Ton objectif")}</h3>
+        <div className="grid3">{[["finir", "Terminer"], ["temps", "Temps cible"], ["perf", "Performance"]].map(([k, l]) => (<button key={k} className={`chip ${goal === k ? "on" : ""}`} onClick={() => setGoal(k)}>{t(l)}</button>))}</div>
       </>)}
 
       {step === 1 && (<>
-        <h3 className="q">Connais-tu ton temps sur 5 km&nbsp;?</h3>
+        <h3 className="q">{t("Connais-tu ton temps sur 5 km ?")}</h3>
         <div className="grid2">
-          <button className={`chip ${knows5k === "yes" ? "on" : ""}`} onClick={() => setKnows5k("yes")}>Oui</button>
-          <button className={`chip ${knows5k === "no" ? "on" : ""}`} onClick={() => setKnows5k("no")}>Non, j'estime</button>
+          <button className={`chip ${knows5k === "yes" ? "on" : ""}`} onClick={() => setKnows5k("yes")}>{t("Oui")}</button>
+          <button className={`chip ${knows5k === "no" ? "on" : ""}`} onClick={() => setKnows5k("no")}>{t("Non, j'estime")}</button>
         </div>
-        {knows5k === "yes" ? (<label className="field mt"><span className="field-label"><Timer size={14} /> Temps sur 5 km (mm:ss)</span>
+        {knows5k === "yes" ? (<label className="field mt"><span className="field-label"><Timer size={14} /> {t("Temps sur 5 km (mm:ss)")}</span>
           <input className="input mono" placeholder="24:30" value={fiveKTime} onChange={(e) => setFiveKTime(e.target.value)} />
-          {fiveKTime && mmssToSec(fiveKTime) === null && <span className="hint warn">Format mm:ss, ex. 24:30</span>}</label>
-        ) : (<div className="mt"><span className="field-label"><Gauge size={14} /> Mon niveau en course</span>
-          <div className="grid2">{[["debutant", "Débutant (~30 min)"], ["intermediaire", "Intermédiaire (~25 min)"], ["confirme", "Confirmé (~21 min)"], ["rapide", "Rapide (~18 min)"]].map(([k, l]) => (<button key={k} className={`chip ${runLevel === k ? "on" : ""}`} onClick={() => setRunLevel(k)}>{l}</button>))}</div></div>)}
-        <p className="hint subtle mt">Sert à calculer toutes tes allures d'entraînement.</p>
+          {fiveKTime && mmssToSec(fiveKTime) === null && <span className="hint warn">{t("Format mm:ss, ex. 24:30")}</span>}</label>
+        ) : (<div className="mt"><span className="field-label"><Gauge size={14} /> {t("Mon niveau en course")}</span>
+          <div className="grid2">{[["debutant", "Débutant (~30 min)"], ["intermediaire", "Intermédiaire (~25 min)"], ["confirme", "Confirmé (~21 min)"], ["rapide", "Rapide (~18 min)"]].map(([k, l]) => (<button key={k} className={`chip ${runLevel === k ? "on" : ""}`} onClick={() => setRunLevel(k)}>{t(l)}</button>))}</div></div>)}
+        <p className="hint subtle mt">{t("Sert à calculer toutes tes allures d'entraînement.")}</p>
       </>)}
 
       {step === 2 && (<>
-        <h3 className="q">As-tu déjà fait un Hyrox&nbsp;?</h3>
-        <p className="hint subtle" style={{ marginTop: 0 }}>Tes temps réels affinent le plan et révèlent tes facteurs limitants.</p>
+        <h3 className="q">{t("As-tu déjà fait un Hyrox en solo ?")}</h3>
+        <p className="hint subtle" style={{ marginTop: 0 }}>{t("Tes temps réels affinent le plan et révèlent tes facteurs limitants. Solo uniquement : les temps en duo ou relais ne sont pas comparables.")}</p>
         <div className="grid2">
-          <button className={`chip ${doneHyrox === "yes" ? "on" : ""}`} onClick={() => setDoneHyrox("yes")}>Oui</button>
-          <button className={`chip ${doneHyrox === "no" ? "on" : ""}`} onClick={() => setDoneHyrox("no")}>Pas encore</button>
+          <button className={`chip ${doneHyrox === "yes" ? "on" : ""}`} onClick={() => setDoneHyrox("yes")}>{t("Oui, en solo")}</button>
+          <button className={`chip ${doneHyrox === "no" ? "on" : ""}`} onClick={() => setDoneHyrox("no")}>{t("Pas encore")}</button>
         </div>
         {doneHyrox === "yes" && (<>
+          <h3 className="q mt">{t("Format de ta course solo")}</h3>
+          <div className="grid2">{[["open", "Solo Open"], ["pro", "Solo Pro"]].map(([k, l]) => (<button key={k} className={`chip ${pastFormat === k ? "on" : ""}`} onClick={() => setPastFormat(k)}>{t(l)}</button>))}</div>
+          <p className="hint subtle">{t("Tes temps seront comparés aux médianes de cette division pour situer tes points faibles.")}</p>
           <div className="grid2 mt">
-            <label className="field"><span className="field-label"><Timer size={14} /> Temps final (mm:ss ou h:mm)</span>
+            <label className="field"><span className="field-label"><Timer size={14} /> {t("Temps final (mm:ss ou h:mm)")}</span>
               <input className="input mono" placeholder="1:25" value={hyroxFinish} onChange={(e) => setHyroxFinish(e.target.value)} /></label>
-            <label className="field"><span className="field-label"><Footprints size={14} /> Allure moyenne des runs (/km)</span>
+            <label className="field"><span className="field-label"><Footprints size={14} /> {t("Allure moyenne des runs (/km)")}</span>
               <input className="input mono" placeholder="5:45" value={hyroxRunAvg} onChange={(e) => setHyroxRunAvg(e.target.value)} /></label>
           </div>
-          <h3 className="q mt">Tes temps par atelier <span className="subtle">(facultatif, mm:ss)</span></h3>
+          <h3 className="q mt">{t("Tes temps par atelier")} <span className="subtle">{t("(facultatif, mm:ss)")}</span></h3>
           <div className="st-times">
             {STATIONS.map((s) => (<label key={s.key} className="st-time">
               <span className="st-name">{s.name}</span>
               <input className="input mono sm" placeholder={secToMMSS(s.ref)} value={stationTimes[s.key] || ""} onChange={(e) => setST(s.key, e.target.value)} />
             </label>))}
           </div>
-          <p className="hint subtle">Renseigne au moins 2 ateliers pour activer la détection automatique des facteurs limitants.</p>
+          <p className="hint subtle">{t("Renseigne au moins 2 ateliers pour activer la détection automatique des facteurs limitants.")}</p>
         </>)}
       </>)}
 
       {step === 3 && (<>
-        <h3 className="q">Ton niveau de force</h3>
+        <h3 className="q">{t("Ton niveau de force")}</h3>
         <div className="range-row"><input type="range" min="1" max="5" value={strengthLevel} onChange={(e) => setStrengthLevel(Number(e.target.value))} className="range" /><span className="mono range-val">{strengthLevel}/5</span></div>
-        <h3 className="q mt">Expérience fitness fonctionnel</h3>
-        <div className="grid3">{[["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"]].map(([k, l]) => (<button key={k} className={`chip ${experience === k ? "on" : ""}`} onClick={() => setExperience(k)}>{l}</button>))}</div>
-        <h3 className="q mt">Matériel disponible</h3>
-        <div className="grid3">{[["gym", "Salle complète"], ["limited", "Matériel limité"], ["home", "Maison"]].map(([k, l]) => (<button key={k} className={`chip ${equipment === k ? "on" : ""}`} onClick={() => setEquipment(k)}>{l}</button>))}</div>
-        <h3 className="q mt">Tes 1RM <span className="subtle">(optionnel — pour des charges précises en kg)</span></h3>
+        <h3 className="q mt">{t("Expérience fitness fonctionnel")}</h3>
+        <div className="grid3">{[["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"]].map(([k, l]) => (<button key={k} className={`chip ${experience === k ? "on" : ""}`} onClick={() => setExperience(k)}>{t(l)}</button>))}</div>
+        <h3 className="q mt">{t("Matériel disponible")}</h3>
+        <div className="grid3">{[["gym", "Salle complète"], ["limited", "Matériel limité"], ["home", "Maison"]].map(([k, l]) => (<button key={k} className={`chip ${equipment === k ? "on" : ""}`} onClick={() => setEquipment(k)}>{t(l)}</button>))}</div>
+        <h3 className="q mt">{t("Tes 1RM")} <span className="subtle">{t("(optionnel — pour des charges précises en kg)")}</span></h3>
         <div className="st-times">
           {[["squat", "Back Squat"], ["deadlift", "Soulevé de terre"], ["bench", "Développé couché"], ["shoulder", "Shoulder Press"]].map(([k, l]) => (
-            <label key={k} className="st-time"><span className="st-name">{l}</span>
+            <label key={k} className="st-time"><span className="st-name">{t(l)}</span>
               <input className="input mono sm" inputMode="numeric" placeholder="kg" value={oneRM[k]} onChange={(e) => setRM(k, e.target.value)} /></label>))}
         </div>
         <div className="st-times" style={{ marginTop: 9 }}>
-          <label className="st-time"><span className="st-name">Tractions max (reps)</span>
+          <label className="st-time"><span className="st-name">{t("Tractions max (reps)")}</span>
             <input className="input mono sm" inputMode="numeric" placeholder="ex. 12" value={maxPullups} onChange={(e) => setMaxPullups(e.target.value)} /></label>
-          <label className="st-time"><span className="st-name">Burpees en 1 min</span>
+          <label className="st-time"><span className="st-name">{t("Burpees en 1 min")}</span>
             <input className="input mono sm" inputMode="numeric" placeholder="ex. 20" value={maxBurpees} onChange={(e) => setMaxBurpees(e.target.value)} /></label>
         </div>
-        <p className="hint subtle">Si tu les renseignes, les séances de force afficheront les charges exactes (% de ton 1RM) et le volume de tractions sera calé sur ton max. Sinon, le programme reste en repères « lourd / 4×5 ».</p>
-        <h3 className="q mt">Tes points faibles ressentis <span className="subtle">(jusqu'à 4)</span></h3>
+        <p className="hint subtle">{t("Si tu les renseignes, les séances de force afficheront les charges exactes (% de ton 1RM) et le volume de tractions sera calé sur ton max. Sinon, le programme reste en repères « lourd / 4×5 ».")}</p>
+        <h3 className="q mt">{t("Tes points faibles ressentis")} <span className="subtle">{t("(jusqu'à 4)")}</span></h3>
         <div className="grid-st">{STATIONS.map((s) => (<button key={s.key} className={`chip sm ${weakStations.includes(s.key) ? "on" : ""}`} onClick={() => toggleWeak(s.key)}>{s.name}</button>))}</div>
       </>)}
 
       {step === 4 && (<>
-        <h3 className="q">Combien de jours par semaine&nbsp;?</h3>
-        <div className="grid4">{[3, 4, 5, 6].map((d) => (<button key={d} className={`chip big ${daysPerWeek === d ? "on" : ""}`} onClick={() => setDays(d)}><span className="mono big-num">{d}</span><span>jours</span></button>))}</div>
-        <div className="recap"><h4>Récapitulatif</h4><ul>
-          <li><MapPin size={13} /> {eventCity ? `${eventCity} · ` : ""}{weeks ? Math.min(24, Math.max(2, weeks)) : "—"} semaines · {DIVISIONS[division].label}</li>
+        <h3 className="q">{t("Combien de jours par semaine ?")}</h3>
+        <div className="grid4">{[3, 4, 5, 6].map((d) => (<button key={d} className={`chip big ${daysPerWeek === d ? "on" : ""}`} onClick={() => setDays(d)}><span className="mono big-num">{d}</span><span>{t("jours")}</span></button>))}</div>
+        <div className="recap"><h4>{t("Récapitulatif")}</h4><ul>
+          <li><MapPin size={13} /> {eventCity ? `${eventCity} · ` : ""}{weeks ? Math.min(24, Math.max(2, weeks)) : "—"} {t("semaines")} · {t(DIVISIONS[division].label)}</li>
           <li><Footprints size={13} /> 5 km : {knows5k === "yes" ? (fiveKTime || "—") : `niveau ${runLevel}`}{doneHyrox === "yes" && hyroxFinish ? ` · Hyrox : ${hyroxFinish}` : ""}</li>
-          <li><Dumbbell size={13} /> Force {strengthLevel}/5 · {equipment === "gym" ? "salle" : equipment === "limited" ? "limité" : "maison"}</li>
-          <li><Calendar size={13} /> {daysPerWeek} séances / semaine</li>
+          <li><Dumbbell size={13} /> {t("Force")} {strengthLevel}/5 · {equipment === "gym" ? t("salle") : equipment === "limited" ? t("limité") : t("maison")}</li>
+          <li><Calendar size={13} /> {daysPerWeek} {t("séances")} / {t("semaine")}</li>
         </ul></div>
       </>)}
     </div>
     <div className="wiz-nav">
-      <button className="btn ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>Retour</button>
-      {step < STEPS.length - 1 ? (<button className="btn primary" disabled={!canNext()} onClick={() => setStep((s) => s + 1)}>Continuer <ArrowRight size={16} /></button>)
-        : (<button className="btn primary" onClick={submit}>Générer mon programme <Zap size={16} /></button>)}
+      <button className="btn ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>{t("Retour")}</button>
+      {step < STEPS.length - 1 ? (<button className="btn primary" disabled={!canNext()} onClick={() => setStep((s) => s + 1)}>{t("Continuer")} <ArrowRight size={16} /></button>)
+        : (<button className="btn primary" onClick={submit}>{t("Générer mon programme")} <Zap size={16} /></button>)}
     </div>
   </div>);
 }
 
 /* ---------------- Niveau de course ---------------- */
 function RunLevelCard({ profile }) {
+  const t = useT();
   if (!profile) return null;
   const faster = profile.vsMedian <= 0;
   return (<div className="card runlvl">
     <div className="rl-top">
       <div>
-        <span className="eyebrow"><Footprints size={13} /> Ton niveau de course</span>
-        <div className="rl-level">{profile.level}</div>
+        <span className="eyebrow"><Footprints size={13} /> {t("Ton niveau de course")}</span>
+        <div className="rl-level">{t(profile.level)}</div>
       </div>
       <div className="rl-stats">
-        <div className="rl-stat"><span className="rl-l">VMA estimée</span><span className="rl-v mono">{profile.vma} km/h</span></div>
-        <div className="rl-stat"><span className="rl-l">{profile.estimated ? "5 km estimé" : "Allure 5 km"}</span><span className="rl-v mono">{secToMMSS(profile.fiveK / 5)} /km</span></div>
-        <div className="rl-stat"><span className="rl-l">vs médiane division</span><span className="rl-v mono" style={{ color: faster ? "var(--cobalt)" : "var(--orange)" }}>{profile.vsMedian > 0 ? `+${profile.vsMedian}%` : `${profile.vsMedian}%`}</span></div>
+        <div className="rl-stat"><span className="rl-l">{t("VMA estimée")}</span><span className="rl-v mono">{profile.vma} km/h</span></div>
+        <div className="rl-stat"><span className="rl-l">{profile.estimated ? t("5 km estimé") : t("Allure 5 km")}</span><span className="rl-v mono">{secToMMSS(profile.fiveK / 5)} /km</span></div>
+        <div className="rl-stat"><span className="rl-l">{t("vs médiane division")}</span><span className="rl-v mono" style={{ color: faster ? "var(--cobalt)" : "var(--orange)" }}>{profile.vsMedian > 0 ? `+${profile.vsMedian}%` : `${profile.vsMedian}%`}</span></div>
       </div>
     </div>
     <div className="rl-meter">{RUN_LEVELS.map((lv, i) => (
-      <div key={lv} className={`rl-seg ${i <= profile.idx ? "on" : ""} ${i === profile.idx ? "cur" : ""}`}><span>{lv}</span></div>
+      <div key={lv} className={`rl-seg ${i <= profile.idx ? "on" : ""} ${i === profile.idx ? "cur" : ""}`}><span>{t(lv)}</span></div>
     ))}</div>
     <p className="hint subtle">{faster
-      ? "Ta course est un atout : sur Hyrox, courir plus vite que la médiane fait gagner de précieuses minutes (la course = ~51 % du temps total)."
-      : "La course est ton plus gros levier : ~51 % du temps total se joue sur les 8 km. Le plan met l'accent sur le volume facile et l'allure cible."}
-      {profile.estimated && " Niveau estimé depuis ta catégorie déclarée — renseigne ton temps sur 5 km pour plus de précision."}</p>
+      ? t("Ta course est un atout : sur Hyrox, courir plus vite que la médiane fait gagner de précieuses minutes (la course = ~51 % du temps total).")
+      : t("La course est ton plus gros levier : ~51 % du temps total se joue sur les 8 km. Le plan met l'accent sur le volume facile et l'allure cible.")}
+      {profile.estimated && (" " + t("Niveau estimé depuis ta catégorie déclarée — renseigne ton temps sur 5 km pour plus de précision."))}</p>
   </div>);
 }
 
 /* ---------------- Facteurs limitants ---------------- */
 function LimitersCard({ limiters }) {
+  const t = useT();
   if (!limiters.hasData) {
     return (<div className="card lim">
-      <span className="eyebrow"><TrendingUp size={13} /> Facteurs limitants</span>
-      <p className="lim-empty">Basés sur tes points faibles ressentis : <b>{limiters.limiters.length ? limiters.limiters.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ") : "aucun précisé"}</b>. Renseigne tes temps par atelier (étape Performances) pour une détection automatique précise.</p>
+      <span className="eyebrow"><TrendingUp size={13} /> {t("Facteurs limitants")}</span>
+      <p className="lim-empty">{t("Basés sur tes points faibles ressentis :")} <b>{limiters.limiters.length ? limiters.limiters.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ") : t("aucun précisé")}</b>. {t("Renseigne tes temps par atelier (étape Performances) pour une détection automatique précise.")}</p>
     </div>);
   }
-  const bal = { run: "Tu perds surtout du temps en course : priorité au volume et à la course fatiguée.", stations: "Tu perds surtout sur les ateliers : priorité à la force et aux simulations.", equilibre: "Course et ateliers sont équilibrés : on travaille les deux." };
+  const bal = { run: t("Tu perds surtout du temps en course : priorité au volume et à la course fatiguée."), stations: t("Tu perds surtout sur les ateliers : priorité à la force et aux simulations."), equilibre: t("Course et ateliers sont équilibrés : on travaille les deux.") };
   const isLim = (k) => limiters.limiters.includes(k);
   return (<div className="card lim">
-    <span className="eyebrow"><TrendingUp size={13} /> Tes facteurs limitants</span>
-    <p className="lim-lead">Le programme attaque en priorité : <b>{limiters.limiters.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ")}</b>.</p>
+    <span className="eyebrow"><TrendingUp size={13} /> {t("Tes facteurs limitants")}</span>
+    <p className="lim-lead">{t("Le programme attaque en priorité :")} <b>{limiters.limiters.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ")}</b>.</p>
     {limiters.balance && <p className="lim-bal">{bal[limiters.balance]}</p>}
     <div className="lim-bars">
       {limiters.detail.map((d) => (<div key={d.key} className={`lim-row ${isLim(d.key) ? "is-lim" : ""}`}>
-        <span className="lim-st">{d.name}{isLim(d.key) && <span className="lim-tag">point faible</span>}</span>
+        <span className="lim-st">{d.name}{isLim(d.key) && <span className="lim-tag">{t("point faible")}</span>}</span>
         <div className="lim-track"><div className="lim-mid" />
           <div className="lim-fill" style={{ width: `${Math.min(96, Math.max(6, 50 + d.over * 1.6))}%`, background: isLim(d.key) ? "var(--orange)" : d.over > 0 ? "var(--accent-deep)" : "var(--cobalt)" }} /></div>
         <span className="lim-val mono">{d.over > 0 ? `+${d.over}%` : `${d.over}%`}</span>
       </div>))}
     </div>
-    <p className="hint subtle">Écart par rapport à la <b>médiane estimée de ta division</b> (− = plus rapide, + = plus lent). Tes points faibles sont les ateliers où tu es le plus en retard <b>par rapport à ton propre niveau moyen</b>, pas dans l'absolu. Médianes indicatives issues d'analyses publiques de résultats HYROX — à affiner.</p>
+    <p className="hint subtle">{t("Écart par rapport à la médiane estimée de ta division (− = plus rapide, + = plus lent). Tes points faibles sont les ateliers où tu es le plus en retard par rapport à ton propre niveau moyen, pas dans l'absolu. Médianes indicatives issues d'analyses publiques de résultats HYROX — à affiner.")}</p>
   </div>);
 }
 
 /* ---------------- Séance ---------------- */
 function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
-  if (!s) return <div className="day rest"><span className="rest-label">Repos</span></div>;
+  if (!s) return <div className="day rest"><span className="rest-label">{t("Repos")}</span></div>;
   const { c, Icon } = CAT_STYLE[s.cat];
   const fbOpts = [["easy", "Trop facile"], ["ok", "Parfait"], ["hard", "Trop dur"]];
   return (<div className={`day ${open ? "open" : ""} ${checked ? "checked" : ""}`}>
     <div className="day-head">
-      <button className="day-check" onClick={onToggle} aria-label={checked ? "Décocher" : "Marquer comme fait"}>
+      <button className="day-check" onClick={onToggle} aria-label={checked ? t("Décocher") : t("Marquer comme fait")}>
         {checked ? <CheckCircle2 size={20} /> : <Circle size={20} />}</button>
       <button className="day-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="day-cat" style={{ background: c }}><Icon size={13} /></span>
@@ -780,8 +951,8 @@ function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
       </button>
     </div>
     {checked && (<div className="day-fb">
-      <span className="day-fb-l">Ressenti :</span>
-      {fbOpts.map(([v, l]) => (<button key={v} className={`fb-btn ${fb === v ? "on " + v : ""}`} onClick={() => onFeedback(fb === v ? null : v)}>{l}</button>))}
+      <span className="day-fb-l">{t("Ressenti :")}</span>
+      {fbOpts.map(([v, l]) => (<button key={v} className={`fb-btn ${fb === v ? "on " + v : ""}`} onClick={() => onFeedback(fb === v ? null : v)}>{t(l)}</button>))}
     </div>)}
     {open && (<div className="day-body">{s.blocks.map((b, i) => (<div key={i} className="block">
       <span className="block-label">{b.label}</span><ul>{b.items.map((it, j) => <li key={j}>{it}</li>)}</ul></div>))}</div>)}
@@ -790,6 +961,7 @@ function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
 
 /* ---------------- Semaine ---------------- */
 function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock, defaultOpen }) {
+  const t = useT();
   const [open, setOpen] = useState(defaultOpen);
   const dayCount = wk.days.filter(Boolean).length;
   const doneCount = wk.days.reduce((a, s, i) => a + (s && checks[`w${wk.number}d${i}`] ? 1 : 0), 0);
@@ -797,7 +969,7 @@ function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock
     <button className="week-head" onClick={() => locked ? onUnlock() : setOpen((o) => !o)} aria-expanded={open}>
       <span className="week-num mono">S{pad(wk.number)}</span>
       <span className="week-info">
-        <span className="phase-chip" style={{ "--ch": wk.color }}>{wk.phaseLabel}{wk.isDeload && " · récup"}{wk.isRaceWeek && " · 🏁"}</span>
+        <span className="phase-chip" style={{ "--ch": wk.color }}>{t(wk.phaseLabel)}{wk.isDeload && (" · " + t("récup"))}{wk.isRaceWeek && " · 🏁"}</span>
         <span className="week-focus">{wk.focus}</span>
       </span>
       {locked ? <span className="week-lock"><Lock size={15} /></span>
@@ -806,13 +978,13 @@ function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock
     </button>
     {!locked && open && (<div className="week-days">
       {wk.days.map((s, i) => (<div key={i} className="day-row">
-        <span className="dow mono">{DAY_NAMES[i]}</span>
+        <span className="dow mono">{t(DAY_NAMES[i])}</span>
         <SessionCard s={s} checked={!!checks[`w${wk.number}d${i}`]} fb={feedback[`w${wk.number}d${i}`]} onToggle={() => onToggle(`w${wk.number}d${i}`)} onFeedback={(v) => onFeedback(`w${wk.number}d${i}`, v)} />
       </div>))}
     </div>)}
     {locked && (<div className="week-locked-body" onClick={onUnlock}>
-      <Lock size={16} /> <span>Débloque le programme complet pour voir cette semaine</span>
-      <button className="btn primary sm">Débloquer</button>
+      <Lock size={16} /> <span>{t("Débloque le programme complet pour voir cette semaine")}</span>
+      <button className="btn primary sm">{t("Débloquer")}</button>
     </div>)}
   </div>);
 }
@@ -828,26 +1000,27 @@ function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onT
   const pct = totalSessions ? Math.round(doneSessions / totalSessions * 100) : 0;
   const adj = program.adj || 0;
   const sg = suggestAdj(feedback, adj);
+  const t = useT();
 
   return (<div className="program">
     <div className="summary card">
       <div className="sum-top">
-        <div><span className="eyebrow">Ton plan personnalisé</span><h2 className="sum-title">{program.eventCity ? `Cap sur ${program.eventCity}` : "Route vers le départ"}</h2></div>
-        <div className="countdown"><span className="mono cd-num">{totalWeeks}</span><span className="cd-label">semaines<br />avant la course</span></div>
+        <div><span className="eyebrow">{t("Ton plan personnalisé")}</span><h2 className="sum-title">{program.eventCity ? t("Cap sur {city}", { city: program.eventCity }) : t("Route vers le départ")}</h2></div>
+        <div className="countdown"><span className="mono cd-num">{totalWeeks}</span><span className="cd-label">{t("semaines")}<br />{t("avant la course")}</span></div>
       </div>
       <RhythmStrip height={16} />
       <div className="progress-wrap">
-        <div className="progress-top"><span>Progression</span><span className="mono">{doneSessions}/{totalSessions} séances · {pct}%</span></div>
+        <div className="progress-top"><span>{t("Progression")}</span><span className="mono">{doneSessions}/{totalSessions} {t("séances")} · {pct}%</span></div>
         <div className="progress-track"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
       </div>
       <div className="sum-grid">
-        <div className="sum-cell"><span className="sc-l">Division</span><span className="sc-v">{division.label}</span></div>
-        <div className="sum-cell"><span className="sc-l">Intensité actuelle</span><span className="sc-v">{INTENSITY_LABELS[String(adj)]}</span></div>
-        <div className="sum-cell"><span className="sc-l">Séances / sem.</span><span className="sc-v mono">{daysPerWeek}</span></div>
-        <div className="sum-cell"><span className="sc-l">Allure souple</span><span className="sc-v mono">{fmtPace(z.easy)}</span></div>
-        <div className="sum-cell"><span className="sc-l">Allure tempo</span><span className="sc-v mono">{fmtPace(z.tempo)}</span></div>
-        <div className="sum-cell"><span className="sc-l">Allure fractionné</span><span className="sc-v mono">{fmtPace(z.interval)}</span></div>
-        <div className="sum-cell"><span className="sc-l">Allure course Hyrox</span><span className="sc-v mono">{fmtPace(z.hyrox)}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Division")}</span><span className="sc-v">{t(division.label)}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Intensité actuelle")}</span><span className="sc-v">{t(INTENSITY_LABELS[String(adj)])}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Séances / sem.")}</span><span className="sc-v mono">{daysPerWeek}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Allure souple")}</span><span className="sc-v mono">{fmtPace(z.easy)}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Allure tempo")}</span><span className="sc-v mono">{fmtPace(z.tempo)}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Allure fractionné")}</span><span className="sc-v mono">{fmtPace(z.interval)}</span></div>
+        <div className="sum-cell"><span className="sc-l">{t("Allure course Hyrox")}</span><span className="sc-v mono">{fmtPace(z.hyrox)}</span></div>
       </div>
     </div>
 
@@ -855,48 +1028,49 @@ function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onT
     <LimitersCard limiters={limiters} />
 
     <div className="timeline card">
-      <span className="eyebrow">Les 4 phases</span>
+      <span className="eyebrow">{t("Les 4 phases")}</span>
       <div className="tl-bar">{phaseSummary.map((p, i) => { const span = p.end - p.start + 1;
         return (<div key={i} className="tl-seg" style={{ flex: span, "--ch": PHASE_META[p.k].color }}>
-          <span className="tl-name">{PHASE_META[p.k].label}</span><span className="tl-weeks mono">S{p.start}{span > 1 ? `–${p.end}` : ""}</span></div>); })}</div>
-      <div className="tl-legend">{phaseSummary.map((p, i) => (<div key={i} className="tl-leg-item"><span className="dot" style={{ background: PHASE_META[p.k].color }} />{PHASE_META[p.k].label} — {PHASE_META[p.k].desc}</div>))}</div>
+          <span className="tl-name">{t(PHASE_META[p.k].label)}</span><span className="tl-weeks mono">S{p.start}{span > 1 ? `–${p.end}` : ""}</span></div>); })}</div>
+      <div className="tl-legend">{phaseSummary.map((p, i) => (<div key={i} className="tl-leg-item"><span className="dot" style={{ background: PHASE_META[p.k].color }} />{t(PHASE_META[p.k].label)} — {t(PHASE_META[p.k].desc)}</div>))}</div>
     </div>
 
     <div className="weights card">
       <button className="weights-head" onClick={() => setShowWeights((s) => !s)} aria-expanded={showWeights}>
-        <span><Anchor size={15} /> Poids de référence · {division.label}</span><ChevronDown size={16} className={`day-chev ${showWeights ? "rot" : ""}`} /></button>
+        <span><Anchor size={15} /> {t("Poids de référence")} · {t(division.label)}</span><ChevronDown size={16} className={`day-chev ${showWeights ? "rot" : ""}`} /></button>
       {showWeights && (<><div className="weights-grid">
         <div className="wg"><span>Sled Push</span><b className="mono">{division.push}</b></div>
         <div className="wg"><span>Sled Pull</span><b className="mono">{division.pull}</b></div>
         <div className="wg"><span>Farmers Carry</span><b className="mono">{division.farmers}</b></div>
         <div className="wg"><span>Sandbag Lunges</span><b className="mono">{division.lunge}</b></div>
         <div className="wg"><span>Wall Balls</span><b className="mono">{division.wallball}</b></div>
-        <div className="wg"><span>SkiErg / Rameur</span><b className="mono">1000 m</b></div>
-      </div><p className="hint subtle">Valeurs indicatives saison 2025/26 (poids du traîneau inclus). Vérifie toujours les standards officiels de ta course sur le site HYROX.</p></>)}
+        <div className="wg"><span>SkiErg / {t("Rameur")}</span><b className="mono">1000 m</b></div>
+      </div><p className="hint subtle">{t("Valeurs indicatives saison 2025/26 (poids du traîneau inclus). Vérifie toujours les standards officiels de ta course sur le site HYROX.")}</p></>)}
     </div>
 
     {sg.rated >= 3 && (<div className={`adapt-band ${sg.changed ? "go" : ""}`}>
       <TrendingUp size={16} />
       <span>{sg.changed
         ? (sg.target > adj
-          ? `Tes retours montrent que c'est trop facile (${sg.easy} séances faciles). On peut monter l'intensité d'un cran.`
-          : `Tes retours montrent que c'est trop dur (${sg.hard} séances dures). On peut alléger d'un cran.`)
-        : `Retours pris en compte : intensité « ${INTENSITY_LABELS[String(adj)]} » bien calée pour l'instant.`}</span>
-      {sg.changed && <button className="btn primary sm" onClick={() => onAdjust(sg.target)}>Réajuster mon plan</button>}
+          ? t("Tes retours montrent que c'est trop facile ({n} séances faciles). On peut monter l'intensité d'un cran.", { n: sg.easy })
+          : t("Tes retours montrent que c'est trop dur ({n} séances dures). On peut alléger d'un cran.", { n: sg.hard }))
+        : t("Retours pris en compte : intensité « {lvl} » bien calée pour l'instant.", { lvl: t(INTENSITY_LABELS[String(adj)]) })}</span>
+      {sg.changed && <button className="btn primary sm" onClick={() => onAdjust(sg.target)}>{t("Réajuster mon plan")}</button>}
     </div>)}
 
     {!unlocked && (<div className="paywall-band" onClick={onUnlock}>
-      <Lock size={15} /> <span>Semaine 1 offerte. Débloque les <b>{totalWeeks - 1} semaines suivantes</b> + le suivi complet.</span>
-      <button className="btn primary sm">Débloquer</button>
+      <Lock size={15} /> <span>{t("Semaine 1 offerte. Débloque les {n} semaines suivantes + le suivi complet.", { n: totalWeeks - 1 })}</span>
+      <button className="btn primary sm">{t("Débloquer")}</button>
     </div>)}
 
     <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} feedback={feedback} onToggle={onToggle} onFeedback={onFeedback} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
 
+    <p className="hint subtle center" style={{ marginTop: 4 }}>{t("Les détails des séances sont affichés en français pour l'instant — leur traduction arrive très bientôt.")}</p>
     <div className="prog-actions">
-      <button className="btn ghost" onClick={() => window.print()}><Printer size={15} /> Imprimer / PDF</button>
-      <button className="btn ghost" onClick={onRestart}><RotateCcw size={15} /> Nouveau programme</button>
+      <button className="btn ghost" onClick={() => window.print()}><Printer size={15} /> {t("Imprimer / PDF")}</button>
+      <button className="btn ghost" onClick={onRestart}><RotateCcw size={15} /> {t("Nouveau programme")}</button>
     </div>
-    <p className="hint subtle center">Programme sauvegardé sur cet appareil. Plan d'entraînement général, pas un avis médical : en cas de doute, consulte un professionnel.</p>
+    <p className="hint subtle center">{t("Programme sauvegardé sur cet appareil. Plan d'entraînement général, pas un avis médical : en cas de doute, consulte un professionnel.")}</p>
   </div>);
 }
 
@@ -910,8 +1084,10 @@ export default function App() {
   const [view, setView] = useState(() => store.get("mhp_data", null) ? "dashboard" : "landing");
   const [showAuth, setShowAuth] = useState(false);
   const [showPay, setShowPay] = useState(false);
+  const [lang, setLang] = useState(() => store.get("mhp_lang", "fr"));
   const topRef = useRef(null);
 
+  useEffect(() => { store.set("mhp_lang", lang); }, [lang]);
   useEffect(() => { const id = "mhp-fonts"; if (!document.getElementById(id)) {
     const l = document.createElement("link"); l.id = id; l.rel = "stylesheet";
     l.href = "https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap";
@@ -947,19 +1123,20 @@ export default function App() {
   const goProgram = () => setView("dashboard");
   const goStart = () => setView("onboarding");
 
-  return (<div className="mhp">
+  const t = (s, vars) => tr(lang, s, vars);
+  return (<LangContext.Provider value={lang}><div className="mhp">
     <style>{CSS}</style>
-    <Nav account={account} onLogin={() => setShowAuth(true)} onLogout={logout} onHome={goHome} onStart={goStart} hasProgram={!!saved} onProgram={goProgram} />
+    <Nav account={account} onLogin={() => setShowAuth(true)} onLogout={logout} onHome={goHome} onStart={goStart} hasProgram={!!saved} onProgram={goProgram} lang={lang} onToggleLang={() => setLang((l) => l === "fr" ? "en" : "fr")} />
     <div ref={topRef} />
     <main className="main">
       {view === "landing" && <Landing onStart={goStart} />}
-      {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">Construisons ton programme</h2><Wizard onGenerate={handleGenerate} account={account} /></div>)}
+      {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">{t("Construisons ton programme")}</h2><Wizard onGenerate={handleGenerate} account={account} /></div>)}
       {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} profile={saved.profile || (saved.form ? runProfile(saved.form) : null)} unlocked={unlocked} checks={checks} feedback={feedback} onToggle={toggleCheck} onFeedback={setSessionFeedback} onAdjust={applyAdjustment} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
     </main>
-    <footer className="foot"><RhythmStrip height={10} /><span>MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.</span></footer>
+    <footer className="foot"><RhythmStrip height={10} /><span>{t("MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.")}</span></footer>
     {showAuth && <AuthModal onClose={() => setShowAuth(false)} onConnect={connect} />}
     {showPay && <Paywall onClose={() => setShowPay(false)} onUnlock={unlock} />}
-  </div>);
+  </div></LangContext.Provider>);
 }
 
 /* ============================ CSS ============================ */
@@ -986,6 +1163,10 @@ const CSS = `
 .nav-right{display:flex;align-items:center;gap:12px;}
 .nav-link{font-size:14px;font-weight:600;color:var(--ink-2);}
 .nav-link:hover{color:var(--cobalt);}
+.lang-toggle{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;border:1.5px solid var(--line);border-radius:99px;padding:4px 9px;color:var(--muted);}
+.lang-toggle:hover{border-color:var(--ink);}
+.lang-toggle .on{color:var(--cobalt);}
+.lang-toggle .sep{color:var(--line);font-weight:400;}
 .nav-user{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-2);}
 
 /* Buttons */
