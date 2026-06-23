@@ -157,6 +157,8 @@ function tr(lang, s, vars) {
   return out;
 }
 function useT() { const lang = useContext(LangContext); return (s, vars) => tr(lang, s, vars); }
+/* helper bilingue pour le contenu généré des séances */
+const loc = (lang, fr, en) => lang === "en" ? en : fr;
 
 
 /* =====================================================================
@@ -291,33 +293,33 @@ const PHASE_META = {
 };
 
 /* ---------- Matériel ---------- */
-function equipAlt(mvt, equip) {
+function equipAlt(mvt, equip, lang) {
   const G = equip === "gym", L = equip === "limited";
   switch (mvt) {
-    case "squat":    return G ? "Back squat (barre)" : L ? "Goblet squat (haltère/kettlebell)" : "Squat poids du corps + sac à dos lesté / squat bulgare";
-    case "hinge":    return G ? "Soulevé de terre / RDL (barre)" : L ? "RDL haltères / swings kettlebell" : "RDL unijambe + soulevé sac lesté";
-    case "press":    return G ? "Développé épaules (barre/haltères)" : L ? "Développé haltères / pompes lestées" : "Pompes (variantes) + développé sac lesté";
-    case "pull":     return G ? "Tractions / tirage horizontal" : L ? "Tractions / rowing haltères" : "Tractions (barre/élastique) + rowing élastique";
-    case "ski":      return G ? "SkiErg" : L ? "Swings + battle ropes" : "Swings sac lesté + planche dynamique";
-    case "row":      return G ? "Rameur" : L ? "Vélo / corde à sauter" : "Burpees rythmés / corde à sauter";
-    case "sledpush": return G ? "Sled push / prowler" : L ? "Poussée traîneau ou montées en côte" : "Tapis incliné rapide / fentes marchées lestées / sprints en côte";
-    case "sledpull": return G ? "Sled pull (corde)" : L ? "Tirage corde / rameur lourd" : "Tirage élastique lourd + rowing";
-    case "wallball": return G || L ? "Wall balls (medecine ball + mur)" : "Thrusters lestés face à une cible haute";
-    case "farmers":  return G ? "Farmers carry (haltères/kettlebells)" : L ? "Port de charges (haltères/kettlebells)" : "Port de jerricans / sac à dos lesté";
-    case "lunge":    return G || L ? "Fentes marchées avec sandbag" : "Fentes marchées + sac à dos lesté";
+    case "squat":    return G ? loc(lang, "Back squat (barre)", "Back squat (barbell)") : L ? loc(lang, "Goblet squat (haltère/kettlebell)", "Goblet squat (dumbbell/kettlebell)") : loc(lang, "Squat poids du corps + sac à dos lesté / squat bulgare", "Bodyweight squat + loaded backpack / Bulgarian split squat");
+    case "hinge":    return G ? loc(lang, "Soulevé de terre / RDL (barre)", "Deadlift / RDL (barbell)") : L ? loc(lang, "RDL haltères / swings kettlebell", "Dumbbell RDL / kettlebell swings") : loc(lang, "RDL unijambe + soulevé sac lesté", "Single-leg RDL + loaded bag lift");
+    case "press":    return G ? loc(lang, "Développé épaules (barre/haltères)", "Shoulder press (barbell/dumbbells)") : L ? loc(lang, "Développé haltères / pompes lestées", "Dumbbell press / weighted push-ups") : loc(lang, "Pompes (variantes) + développé sac lesté", "Push-ups (variations) + loaded bag press");
+    case "pull":     return G ? loc(lang, "Tractions / tirage horizontal", "Pull-ups / horizontal row") : L ? loc(lang, "Tractions / rowing haltères", "Pull-ups / dumbbell rows") : loc(lang, "Tractions (barre/élastique) + rowing élastique", "Pull-ups (bar/band) + band rows");
+    case "ski":      return G ? "SkiErg" : L ? loc(lang, "Swings + battle ropes", "Swings + battle ropes") : loc(lang, "Swings sac lesté + planche dynamique", "Loaded-bag swings + dynamic plank");
+    case "row":      return G ? loc(lang, "Rameur", "Rowing") : L ? loc(lang, "Vélo / corde à sauter", "Bike / jump rope") : loc(lang, "Burpees rythmés / corde à sauter", "Paced burpees / jump rope");
+    case "sledpush": return G ? loc(lang, "Sled push / prowler", "Sled push / prowler") : L ? loc(lang, "Poussée traîneau ou montées en côte", "Sled push or hill repeats") : loc(lang, "Tapis incliné rapide / fentes marchées lestées / sprints en côte", "Fast incline treadmill / loaded walking lunges / hill sprints");
+    case "sledpull": return G ? loc(lang, "Sled pull (corde)", "Sled pull (rope)") : L ? loc(lang, "Tirage corde / rameur lourd", "Rope pull / heavy rowing") : loc(lang, "Tirage élastique lourd + rowing", "Heavy band pulls + rows");
+    case "wallball": return G || L ? loc(lang, "Wall balls (medecine ball + mur)", "Wall balls (medicine ball + wall)") : loc(lang, "Thrusters lestés face à une cible haute", "Loaded thrusters to a high target");
+    case "farmers":  return G ? loc(lang, "Farmers carry (haltères/kettlebells)", "Farmers carry (dumbbells/kettlebells)") : L ? loc(lang, "Port de charges (haltères/kettlebells)", "Loaded carries (dumbbells/kettlebells)") : loc(lang, "Port de jerricans / sac à dos lesté", "Jerry-can carries / loaded backpack");
+    case "lunge":    return G || L ? loc(lang, "Fentes marchées avec sandbag", "Walking lunges with sandbag") : loc(lang, "Fentes marchées + sac à dos lesté", "Walking lunges + loaded backpack");
     default: return mvt;
   }
 }
-function stationDrill(key, w, equip) {
+function stationDrill(key, w, equip, lang) {
   switch (key) {
-    case "ski":      return `${equipAlt("ski", equip)} — 4 × 250 m, départ explosif, rythme régulier`;
-    case "sledpush": return `${equipAlt("sledpush", equip)} — 6 × 15 m lourd (≈ ${w.push}), petits pas, dos gainé`;
-    case "sledpull": return `${equipAlt("sledpull", equip)} — 6 × 15 m (≈ ${w.pull}), hanches basses`;
-    case "burpee":   return "Burpee broad jumps — 5 × 10, rester bas, sauter loin, respiration calme";
-    case "row":      return `${equipAlt("row", equip)} — 4 × 300 m allure cible, tirage jambes→dos→bras`;
-    case "farmers":  return `${equipAlt("farmers", equip)} — 4 × 50 m (≈ ${w.farmers}), grip ferme, pas rapides`;
-    case "lunge":    return `${equipAlt("lunge", equip)} — 4 × 25 m (${w.lunge}), genou au sol, buste droit`;
-    case "wallball": return `${equipAlt("wallball", equip)} — 5 × 20 (${w.wallball}), squat complet, lancer dans le rythme`;
+    case "ski":      return `${equipAlt("ski", equip, lang)} — ${loc(lang, "4 × 250 m, départ explosif, rythme régulier", "4 × 250 m, explosive start, steady rhythm")}`;
+    case "sledpush": return `${equipAlt("sledpush", equip, lang)} — ${loc(lang, `6 × 15 m lourd (≈ ${w.push}), petits pas, dos gainé`, `6 × 15 m heavy (≈ ${w.push}), short steps, braced back`)}`;
+    case "sledpull": return `${equipAlt("sledpull", equip, lang)} — ${loc(lang, `6 × 15 m (≈ ${w.pull}), hanches basses`, `6 × 15 m (≈ ${w.pull}), hips low`)}`;
+    case "burpee":   return loc(lang, "Burpee broad jumps — 5 × 10, rester bas, sauter loin, respiration calme", "Burpee broad jumps — 5 × 10, stay low, jump far, calm breathing");
+    case "row":      return `${equipAlt("row", equip, lang)} — ${loc(lang, "4 × 300 m allure cible, tirage jambes→dos→bras", "4 × 300 m target pace, drive legs→back→arms")}`;
+    case "farmers":  return `${equipAlt("farmers", equip, lang)} — ${loc(lang, `4 × 50 m (≈ ${w.farmers}), grip ferme, pas rapides`, `4 × 50 m (≈ ${w.farmers}), firm grip, quick steps`)}`;
+    case "lunge":    return `${equipAlt("lunge", equip, lang)} — ${loc(lang, `4 × 25 m (${w.lunge}), genou au sol, buste droit`, `4 × 25 m (${w.lunge}), knee to floor, torso tall`)}`;
+    case "wallball": return `${equipAlt("wallball", equip, lang)} — ${loc(lang, `5 × 20 (${w.wallball}), squat complet, lancer dans le rythme`, `5 × 20 (${w.wallball}), full squat, throw in rhythm`)}`;
     default: return "";
   }
 }
@@ -400,125 +402,130 @@ function suggestAdj(feedback, currentAdj) {
 
 /* ---------- Générateurs de séances ---------- */
 const ramp = (pp, lo, hi) => Math.round(lo + (hi - lo) * pp);
-function sEasyRun(c) { const km = c.phaseKey === "base" ? ramp(c.pp, 5, 8) : c.phaseKey === "build" ? ramp(c.pp, 6, 9) : 6;
-  return { cat: "run", title: "Sortie souple", tag: "Endurance Z2", duration: km * 6 + 12, blocks: [
-    { label: "Échauffement", items: ["5 min marche active + mobilité chevilles/hanches"] },
-    { label: "Bloc principal", items: [`${km} km en aisance — allure ${fmtPace(c.z.easy)} (tu peux parler)`] },
-    { label: "Notes", items: ["Volume facile. Si fatigue, ralentis sans culpabiliser."] }, ] }; }
-function sLongRun(c) { const km = c.phaseKey === "base" ? ramp(c.pp, 8, 11) : c.phaseKey === "build" ? ramp(c.pp, 10, 14) : ramp(c.pp, 8, 12);
+function sEasyRun(c) { const km = c.phaseKey === "base" ? ramp(c.pp, 5, 8) : c.phaseKey === "build" ? ramp(c.pp, 6, 9) : 6; const g = c.lang;
+  return { cat: "run", title: loc(g, "Sortie souple", "Easy run"), tag: loc(g, "Endurance Z2", "Z2 endurance"), duration: km * 6 + 12, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "5 min marche active + mobilité chevilles/hanches", "5 min brisk walk + ankle/hip mobility")] },
+    { label: loc(g, "Bloc principal", "Main set"), items: [loc(g, `${km} km en aisance — allure ${fmtPace(c.z.easy)} (tu peux parler)`, `${km} km easy — pace ${fmtPace(c.z.easy)} (conversational)`)] },
+    { label: loc(g, "Notes", "Notes"), items: [loc(g, "Volume facile. Si fatigue, ralentis sans culpabiliser.", "Easy volume. If tired, slow down guilt-free.")] }, ] }; }
+function sLongRun(c) { const km = c.phaseKey === "base" ? ramp(c.pp, 8, 11) : c.phaseKey === "build" ? ramp(c.pp, 10, 14) : ramp(c.pp, 8, 12); const g = c.lang;
   const fin = c.phaseKey === "base" ? 0 : Math.max(2, Math.round(km * 0.25));
-  return { cat: "run", title: "Sortie longue", tag: "Endurance fondamentale", duration: km * 6 + 15, blocks: [
-    { label: "Échauffement", items: ["10 min très facile + gammes"] },
-    { label: "Bloc principal", items: [`${km - fin} km à ${fmtPace(c.z.long)}`, fin ? `Puis ${fin} km à allure course ${fmtPace(c.z.hyrox)}` : "Allure régulière de bout en bout"].filter(Boolean) },
-    { label: "Notes", items: ["Hydratation + ravito si > 75 min."] }, ] }; }
-function sIntervals(c) { const menus = { base: [["8 × 400 m", "récup 90 s trot"], ["6 × 600 m", "récup 90 s trot"]],
-    build: [["6 × 800 m", "récup 2 min trot"], ["5 × 1000 m", "récup 2 min trot"], ["10 × 400 m", "récup 75 s"]],
-    specific: [["4 × 1000 m", "récup 2 min"], ["5 × 800 m", "récup 90 s"], ["3 × 1200 m", "récup 2 min30"]],
-    taper: [["5 × 400 m vif", "récup 2 min, fraîcheur d'abord"]] };
+  return { cat: "run", title: loc(g, "Sortie longue", "Long run"), tag: loc(g, "Endurance fondamentale", "Aerobic base"), duration: km * 6 + 15, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "10 min très facile + gammes", "10 min very easy + drills")] },
+    { label: loc(g, "Bloc principal", "Main set"), items: [loc(g, `${km - fin} km à ${fmtPace(c.z.long)}`, `${km - fin} km at ${fmtPace(c.z.long)}`), fin ? loc(g, `Puis ${fin} km à allure course ${fmtPace(c.z.hyrox)}`, `Then ${fin} km at race pace ${fmtPace(c.z.hyrox)}`) : loc(g, "Allure régulière de bout en bout", "Steady pace throughout")].filter(Boolean) },
+    { label: loc(g, "Notes", "Notes"), items: [loc(g, "Hydratation + ravito si > 75 min.", "Hydrate + fuel if > 75 min.")] }, ] }; }
+function sIntervals(c) { const g = c.lang; const menus = { base: [["8 × 400 m", loc(g, "récup 90 s trot", "90 s jog recovery")], ["6 × 600 m", loc(g, "récup 90 s trot", "90 s jog recovery")]],
+    build: [["6 × 800 m", loc(g, "récup 2 min trot", "2 min jog recovery")], ["5 × 1000 m", loc(g, "récup 2 min trot", "2 min jog recovery")], ["10 × 400 m", loc(g, "récup 75 s", "75 s recovery")]],
+    specific: [["4 × 1000 m", loc(g, "récup 2 min", "2 min recovery")], ["5 × 800 m", loc(g, "récup 90 s", "90 s recovery")], ["3 × 1200 m", loc(g, "récup 2 min30", "2 min 30 recovery")]],
+    taper: [["5 × 400 m " + loc(g, "vif", "fast"), loc(g, "récup 2 min, fraîcheur d'abord", "2 min recovery, freshness first")]] };
   const list = menus[c.phaseKey] || menus.build; const p = list[c.wk % list.length];
-  return { cat: "run", title: "Fractionné (VMA / seuil)", tag: "Vitesse & VO₂", duration: 55, blocks: [
-    { label: "Échauffement", items: ["15 min progressif + 4 lignes droites + gammes"] },
-    { label: "Bloc principal", items: [`${p[0]} à ${fmtPace(c.z.interval)} — ${p[1]}`] },
-    { label: "Retour au calme", items: ["10 min trot très facile"] }, ] }; }
+  return { cat: "run", title: loc(g, "Fractionné (VMA / seuil)", "Intervals (VO₂ / threshold)"), tag: loc(g, "Vitesse & VO₂", "Speed & VO₂"), duration: 55, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "15 min progressif + 4 lignes droites + gammes", "15 min progressive + 4 strides + drills")] },
+    { label: loc(g, "Bloc principal", "Main set"), items: [`${p[0]} ${loc(g, "à", "at")} ${fmtPace(c.z.interval)} — ${p[1]}`] },
+    { label: loc(g, "Retour au calme", "Cool-down"), items: [loc(g, "10 min trot très facile", "10 min very easy jog")] }, ] }; }
 function sTempo(c) {
-  const pp = c.pp;
+  const pp = c.pp; const g = c.lang;
   // Phases finales : on remplace le seuil par de l'allure cible course (recommandé en prépa Hyrox)
   if (c.phaseKey === "specific" || c.phaseKey === "taper") {
-    const opts = [["4 × 6 min", "récup 2 min"], ["3 × 8 min", "récup 2 min"], ["3 × 10 min", "récup 2 min"]];
+    const opts = [["4 × 6 min"], ["3 × 8 min"], ["3 × 10 min"]];
     const pick = opts[Math.min(opts.length - 1, Math.round(pp * (opts.length - 1)))];
-    return { cat: "run", title: "Allure cible Hyrox", tag: "Spécifique course", duration: 60, blocks: [
-      { label: "Échauffement", items: ["15 min facile + 4 lignes droites"] },
-      { label: "Bloc principal", items: [`${pick[0]} à ${fmtPace(c.z.hyrox)} — ${pick[1]}`] },
-      { label: "Notes", items: ["Mémorise la sensation : en compétition, le GPS est souvent inutilisable dans les halls."] },
-      { label: "Retour au calme", items: ["10 min trot"] }, ] };
+    return { cat: "run", title: loc(g, "Allure cible Hyrox", "Hyrox target pace"), tag: loc(g, "Spécifique course", "Race-specific"), duration: 60, blocks: [
+      { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "15 min facile + 4 lignes droites", "15 min easy + 4 strides")] },
+      { label: loc(g, "Bloc principal", "Main set"), items: [`${pick[0]} ${loc(g, "à", "at")} ${fmtPace(c.z.hyrox)} — ${loc(g, "récup 2 min", "2 min recovery")}`] },
+      { label: loc(g, "Notes", "Notes"), items: [loc(g, "Mémorise la sensation : en compétition, le GPS est souvent inutilisable dans les halls.", "Memorize the feel: in competition GPS is often useless inside the halls.")] },
+      { label: loc(g, "Retour au calme", "Cool-down"), items: [loc(g, "10 min trot", "10 min jog")] }, ] };
   }
   // Base / Développement : tempo et seuil en alternance, progressifs
-  const tempo = [["2 × 10 min", "récup 3 min"], ["3 × 10 min", "récup 3 min"], ["3 × 15 min", "récup 3 min"]];
-  const seuil = [["4 × 4 min", "récup 2 min"], ["4 × 5 min", "récup 2 min"], ["4 × 6 min", "récup 2 min"]];
+  const tempo = [["2 × 10 min"], ["3 × 10 min"], ["3 × 15 min"]];
+  const seuil = [["4 × 4 min"], ["4 × 5 min"], ["4 × 6 min"]];
   const useSeuil = c.wk % 2 === 1;
   const set = useSeuil ? seuil : tempo;
   const pick = set[Math.min(set.length - 1, Math.round(pp * (set.length - 1)))];
   const pace = useSeuil ? c.z.threshold : c.z.tempo;
-  return { cat: "run", title: useSeuil ? "Seuil" : "Tempo", tag: "Endurance de vitesse", duration: 55, blocks: [
-    { label: "Échauffement", items: ["15 min facile + 3 lignes droites"] },
-    { label: "Bloc principal", items: [`${pick[0]} à ${fmtPace(pace)} — ${pick[1]} (effort ${useSeuil ? "légèrement difficile" : "confortablement dur"})`] },
-    { label: "Retour au calme", items: ["10 min trot"] }, ] }; }
+  const rec = useSeuil ? loc(g, "récup 2 min", "2 min recovery") : loc(g, "récup 3 min", "3 min recovery");
+  const effort = useSeuil ? loc(g, "légèrement difficile", "comfortably hard") : loc(g, "confortablement dur", "controlled hard");
+  return { cat: "run", title: useSeuil ? loc(g, "Seuil", "Threshold") : "Tempo", tag: loc(g, "Endurance de vitesse", "Speed endurance"), duration: 55, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "15 min facile + 3 lignes droites", "15 min easy + 3 strides")] },
+    { label: loc(g, "Bloc principal", "Main set"), items: [`${pick[0]} ${loc(g, "à", "at")} ${fmtPace(pace)} — ${rec} (${loc(g, "effort", "effort")} ${effort})`] },
+    { label: loc(g, "Retour au calme", "Cool-down"), items: [loc(g, "10 min trot", "10 min jog")] }, ] }; }
 /* Finisher métabolique AMRAP/EMOM (phases build/specific) — scalé sur les maxs */
 function metconBlock(c) {
+  const g = c.lang;
   const burp = c.maxBurp ? Math.max(5, Math.round(c.maxBurp * 0.5)) : 8;
   const pull = c.maxPull ? Math.max(3, Math.round(c.maxPull * 0.4)) : 6;
   if (c.wk % 2 === 0) {
-    return { label: "Finisher — EMOM 12 min", items: [
-      `Min 1 : ${burp} burpees`, `Min 2 : 12 ${equipAlt("wallball", c.equip)}`, `Min 3 : ${pull} tractions`,
-      "4 tours. Le repos = le temps restant dans chaque minute." ] };
+    return { label: loc(g, "Finisher — EMOM 12 min", "Finisher — EMOM 12 min"), items: [
+      loc(g, `Min 1 : ${burp} burpees`, `Min 1: ${burp} burpees`), `Min 2${loc(g, " : ", ": ")}12 ${equipAlt("wallball", c.equip, g)}`, loc(g, `Min 3 : ${pull} tractions`, `Min 3: ${pull} pull-ups`),
+      loc(g, "4 tours. Le repos = le temps restant dans chaque minute.", "4 rounds. Rest = time left in each minute.") ] };
   }
-  return { label: "Finisher — AMRAP 10 min", items: [
-    "Max de tours en 10 min :", `• 10 ${equipAlt("wallball", c.equip)}`, "• 12 fentes lestées",
-    `• ${pull} tractions`, "• 200 m rameur" ] };
+  return { label: loc(g, "Finisher — AMRAP 10 min", "Finisher — AMRAP 10 min"), items: [
+    loc(g, "Max de tours en 10 min :", "Max rounds in 10 min:"), `• 10 ${equipAlt("wallball", c.equip, g)}`, loc(g, "• 12 fentes lestées", "• 12 weighted lunges"),
+    loc(g, `• ${pull} tractions`, `• ${pull} pull-ups`), loc(g, "• 200 m rameur", "• 200 m row") ] };
 }
 /* schéma de force par phase : lourd/peu de reps tôt → endurance/résistance tard */
-function strengthScheme(phase) {
-  if (phase === "base")     return { sets: 5, reps: 5,  rest: "récup 2–3 min",            goal: "force" };
-  if (phase === "build")    return { sets: 4, reps: 4,  rest: "récup 2–3 min",            goal: "force max" };
-  if (phase === "specific") return { sets: 4, reps: 15, rest: "récup 45–60 s (résistance)", goal: "endurance de force" };
-  return { sets: 3, reps: 6, rest: "récup libre, charges légères", goal: "entretien" };
+function strengthScheme(phase, g) {
+  if (phase === "base")     return { sets: 5, reps: 5,  rest: loc(g, "récup 2–3 min", "2–3 min rest"),            goal: loc(g, "force", "strength") };
+  if (phase === "build")    return { sets: 4, reps: 4,  rest: loc(g, "récup 2–3 min", "2–3 min rest"),            goal: loc(g, "force max", "max strength") };
+  if (phase === "specific") return { sets: 4, reps: 15, rest: loc(g, "récup 45–60 s (résistance)", "45–60 s rest (endurance)"), goal: loc(g, "endurance de force", "strength endurance") };
+  return { sets: 3, reps: 6, rest: loc(g, "récup libre, charges légères", "free rest, light loads"), goal: loc(g, "entretien", "maintenance") };
 }
 function sStrengthLower(c) {
-  const { sets, reps, rest, goal } = strengthScheme(c.phaseKey);
+  const g = c.lang;
+  const { sets, reps, rest, goal } = strengthScheme(c.phaseKey, g);
   const hingeReps = Math.min(reps, 8);
   const sq = loadFor(c.orm?.squat, reps, c.adj);
   const dl = loadFor(c.orm?.deadlift, hingeReps, c.adj);
   const items = [
-    `${equipAlt("squat", c.equip)} — ${sets} × ${reps}${sq ? ` → ${sq}` : ""}, ${rest}`,
-    `${equipAlt("hinge", c.equip)} — ${sets} × ${hingeReps}${dl ? ` → ${dl}` : ""}`,
-    `${equipAlt("sledpush", c.equip)} — 5 × 15 m (≈ ${c.w.push}) si dispo`,
-    `${equipAlt("lunge", c.equip)} — 3 × 20 m lestées`,
+    `${equipAlt("squat", c.equip, g)} — ${sets} × ${reps}${sq ? ` → ${sq}` : ""}, ${rest}`,
+    `${equipAlt("hinge", c.equip, g)} — ${sets} × ${hingeReps}${dl ? ` → ${dl}` : ""}`,
+    `${equipAlt("sledpush", c.equip, g)} — ${loc(g, `5 × 15 m (≈ ${c.w.push}) si dispo`, `5 × 15 m (≈ ${c.w.push}) if available`)}`,
+    `${equipAlt("lunge", c.equip, g)} — ${loc(g, "3 × 20 m lestées", "3 × 20 m loaded")}`,
   ];
-  const focus = ["sledpush", "sledpull", "lunge"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip));
+  const focus = ["sledpush", "sledpull", "lunge"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip, g));
   const useMetcon = c.phaseKey === "build" || c.phaseKey === "specific";
-  return { cat: "strength", title: "Force — bas du corps", tag: `Jambes · ${goal}`, duration: 65, blocks: [
-    { label: "Échauffement", items: ["8 min vélo/corde + mobilité hanches + activation fessiers"] },
-    { label: "Bloc principal", items }, ...(focus.length ? [{ label: "Facteur limitant ciblé", items: focus }] : []),
-    useMetcon ? metconBlock(c) : { label: "Gainage", items: ["3 × 45 s planche + 3 × 12 dead bug"] }, ] }; }
+  return { cat: "strength", title: loc(g, "Force — bas du corps", "Strength — lower body"), tag: `${loc(g, "Jambes", "Legs")} · ${goal}`, duration: 65, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "8 min vélo/corde + mobilité hanches + activation fessiers", "8 min bike/rope + hip mobility + glute activation")] },
+    { label: loc(g, "Bloc principal", "Main set"), items }, ...(focus.length ? [{ label: loc(g, "Facteur limitant ciblé", "Targeted limiting factor"), items: focus }] : []),
+    useMetcon ? metconBlock(c) : { label: loc(g, "Gainage", "Core"), items: [loc(g, "3 × 45 s planche + 3 × 12 dead bug", "3 × 45 s plank + 3 × 12 dead bug")] }, ] }; }
 function sStrengthUpper(c) {
-  const { sets, reps, rest, goal } = strengthScheme(c.phaseKey);
+  const g = c.lang;
+  const { sets, reps, rest, goal } = strengthScheme(c.phaseKey, g);
   const sh = loadFor(c.orm?.shoulder, reps, c.adj);
   const bn = loadFor(c.orm?.bench, reps, c.adj);
-  const pullSets = c.maxPull ? `${sets} × ${Math.max(3, Math.round(c.maxPull * (c.phaseKey === "specific" ? 0.55 : 0.45)))} (≈${c.phaseKey === "specific" ? 55 : 45} % de ton max)` : `${sets} × 6–10`;
+  const pullSets = c.maxPull ? `${sets} × ${Math.max(3, Math.round(c.maxPull * (c.phaseKey === "specific" ? 0.55 : 0.45)))} ${loc(g, `(≈${c.phaseKey === "specific" ? 55 : 45} % de ton max)`, `(≈${c.phaseKey === "specific" ? 55 : 45}% of your max)`)}` : `${sets} × 6–10`;
   const items = [
-    `${equipAlt("press", c.equip)} (épaules) — ${sets} × ${reps}${sh ? ` → ${sh}` : ""}, ${rest}`,
-    ...(bn ? [`Développé couché — ${sets} × ${reps} → ${bn}`] : []),
-    `${equipAlt("pull", c.equip)} — ${pullSets}`,
-    `${equipAlt("ski", c.equip)} — 4 × 250 m`,
-    `${equipAlt("farmers", c.equip)} — 4 × 40 m (≈ ${c.w.farmers})`,
+    `${equipAlt("press", c.equip, g)} (${loc(g, "épaules", "shoulders")}) — ${sets} × ${reps}${sh ? ` → ${sh}` : ""}, ${rest}`,
+    ...(bn ? [`${loc(g, "Développé couché", "Bench press")} — ${sets} × ${reps} → ${bn}`] : []),
+    `${equipAlt("pull", c.equip, g)} — ${pullSets}`,
+    `${equipAlt("ski", c.equip, g)} — 4 × 250 m`,
+    `${equipAlt("farmers", c.equip, g)} — 4 × 40 m (≈ ${c.w.farmers})`,
   ];
-  const focus = ["ski", "sledpull", "farmers", "row"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip));
+  const focus = ["ski", "sledpull", "farmers", "row"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip, g));
   const useMetcon = c.phaseKey === "build" || c.phaseKey === "specific";
-  return { cat: "strength", title: "Force — haut du corps & grip", tag: `Tirage, épaules · ${goal}`, duration: 60, blocks: [
-    { label: "Échauffement", items: ["8 min rameur léger + rotations épaules + élastique"] },
-    { label: "Bloc principal", items }, ...(focus.length ? [{ label: "Facteur limitant ciblé", items: focus }] : []),
-    useMetcon ? metconBlock(c) : { label: "Gainage", items: ["3 × 30 s gainage latéral / côté + suspension barre 3 × max"] }, ] }; }
-function sCompromised(c) { const rounds = c.phaseKey === "build" ? 4 : 5;
-  return { cat: "hyrox", title: "Course compromise", tag: "Courir sur jambes fatiguées", duration: 55, blocks: [
-    { label: "Échauffement", items: ["12 min progressif + gammes"] },
-    { label: "Bloc principal", items: [`${rounds} tours à enchaîner :`, `• 800 m à ${fmtPace(c.z.hyrox)}`, `• 20 ${equipAlt("wallball", c.equip)} (${c.w.wallball})`, `• 15 burpee broad jumps`] },
-    { label: "Notes", items: ["Garder la même allure de course à chaque tour malgré la fatigue."] }, ] }; }
-function sHyroxSim(c) { const n = c.phaseKey === "build" ? ramp(c.pp, 3, 5) : ramp(c.pp, 5, 8); const seq = STATIONS.slice(0, n);
-  const recipe = { ski: `${equipAlt("ski", c.equip)} 1000 m`, sledpush: `${equipAlt("sledpush", c.equip)} 50 m (≈ ${c.w.push})`, sledpull: `${equipAlt("sledpull", c.equip)} 50 m (≈ ${c.w.pull})`, burpee: "Burpee broad jumps 80 m", row: `${equipAlt("row", c.equip)} 1000 m`, farmers: `${equipAlt("farmers", c.equip)} 200 m (${c.w.farmers})`, lunge: `${equipAlt("lunge", c.equip)} 100 m (${c.w.lunge})`, wallball: `Wall balls 100 reps (${c.w.wallball})` };
-  const items = [`Format : 1 km de course + 1 station, ${n} fois.`, `Allure course cible : ${fmtPace(c.z.hyrox)}`];
+  return { cat: "strength", title: loc(g, "Force — haut du corps & grip", "Strength — upper body & grip"), tag: `${loc(g, "Tirage, épaules", "Pull, shoulders")} · ${goal}`, duration: 60, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "8 min rameur léger + rotations épaules + élastique", "8 min easy row + shoulder rotations + band work")] },
+    { label: loc(g, "Bloc principal", "Main set"), items }, ...(focus.length ? [{ label: loc(g, "Facteur limitant ciblé", "Targeted limiting factor"), items: focus }] : []),
+    useMetcon ? metconBlock(c) : { label: loc(g, "Gainage", "Core"), items: [loc(g, "3 × 30 s gainage latéral / côté + suspension barre 3 × max", "3 × 30 s side plank / side + bar hang 3 × max")] }, ] }; }
+function sCompromised(c) { const rounds = c.phaseKey === "build" ? 4 : 5; const g = c.lang;
+  return { cat: "hyrox", title: loc(g, "Course compromise", "Compromised running"), tag: loc(g, "Courir sur jambes fatiguées", "Running on tired legs"), duration: 55, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "12 min progressif + gammes", "12 min progressive + drills")] },
+    { label: loc(g, "Bloc principal", "Main set"), items: [loc(g, `${rounds} tours à enchaîner :`, `${rounds} rounds back-to-back:`), `• 800 m ${loc(g, "à", "at")} ${fmtPace(c.z.hyrox)}`, `• 20 ${equipAlt("wallball", c.equip, g)} (${c.w.wallball})`, loc(g, "• 15 burpee broad jumps", "• 15 burpee broad jumps")] },
+    { label: loc(g, "Notes", "Notes"), items: [loc(g, "Garder la même allure de course à chaque tour malgré la fatigue.", "Hold the same run pace every round despite fatigue.")] }, ] }; }
+function sHyroxSim(c) { const n = c.phaseKey === "build" ? ramp(c.pp, 3, 5) : ramp(c.pp, 5, 8); const seq = STATIONS.slice(0, n); const g = c.lang;
+  const recipe = { ski: `${equipAlt("ski", c.equip, g)} 1000 m`, sledpush: `${equipAlt("sledpush", c.equip, g)} 50 m (≈ ${c.w.push})`, sledpull: `${equipAlt("sledpull", c.equip, g)} 50 m (≈ ${c.w.pull})`, burpee: "Burpee broad jumps 80 m", row: `${equipAlt("row", c.equip, g)} 1000 m`, farmers: `${equipAlt("farmers", c.equip, g)} 200 m (${c.w.farmers})`, lunge: `${equipAlt("lunge", c.equip, g)} 100 m (${c.w.lunge})`, wallball: `Wall balls 100 ${loc(g, "reps", "reps")} (${c.w.wallball})` };
+  const items = [loc(g, `Format : 1 km de course + 1 station, ${n} fois.`, `Format: 1 km run + 1 station, ${n} times.`), `${loc(g, "Allure course cible", "Target race pace")} : ${fmtPace(c.z.hyrox)}`];
   seq.forEach((s, i) => items.push(`Run ${i + 1} (1 km) → ${recipe[s.key]}`));
-  return { cat: "hyrox", title: n >= 8 ? "Simulation Hyrox complète" : `Simulation Hyrox (${n} stations)`, tag: "Spécifique course", duration: 30 + n * 12, blocks: [
-    { label: "Échauffement", items: ["15 min progressif + mobilité + 2 stations légères"] },
-    { label: "Le parcours", items }, ...(c.weak.length ? [{ label: "Focus", items: [`Reste calme sur tes facteurs limitants : ${c.weak.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ")}.`] }] : []),
-    { label: "Notes", items: ["Chronomètre chaque station + chaque km pour suivre tes progrès."] }, ] }; }
-function sRecovery() { return { cat: "recovery", title: "Récupération active", tag: "Mobilité & régénération", duration: 35, blocks: [
-    { label: "Au choix", items: ["25–30 min très facile : marche rapide, vélo ou nage"] },
-    { label: "Mobilité", items: ["10 min : hanches, chevilles, épaules, thoraciques"] },
-    { label: "Notes", items: ["Aucune intensité. Le progrès se construit pendant la récupération."] }, ] }; }
-function sRaceRehearsal(c) { return { cat: "hyrox", title: "Répétition jour J", tag: "Affûtage — court & vif", duration: 45, blocks: [
-    { label: "Échauffement", items: ["15 min comme le jour J : progressif + gammes + 2 lignes droites"] },
-    { label: "Bloc principal", items: ["Mini-simulation 3 tours :", `• 1 km à ${fmtPace(c.z.hyrox)}`, `• 1 station (alterne ${equipAlt("wallball", c.equip)} / ${equipAlt("sledpush", c.equip)} / ${equipAlt("row", c.equip)})`] },
-    { label: "Notes", items: ["Reste large sous ta limite. On entretient, on ne construit plus.", "Teste tenue, chaussures, nutrition, transitions."] }, ] }; }
+  return { cat: "hyrox", title: n >= 8 ? loc(g, "Simulation Hyrox complète", "Full Hyrox simulation") : loc(g, `Simulation Hyrox (${n} stations)`, `Hyrox simulation (${n} stations)`), tag: loc(g, "Spécifique course", "Race-specific"), duration: 30 + n * 12, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "15 min progressif + mobilité + 2 stations légères", "15 min progressive + mobility + 2 light stations")] },
+    { label: loc(g, "Le parcours", "The course"), items }, ...(c.weak.length ? [{ label: "Focus", items: [loc(g, `Reste calme sur tes facteurs limitants : ${c.weak.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ")}.`, `Stay calm on your limiting factors: ${c.weak.map((k) => STATIONS.find((s) => s.key === k)?.name).join(", ")}.`)] }] : []),
+    { label: loc(g, "Notes", "Notes"), items: [loc(g, "Chronomètre chaque station + chaque km pour suivre tes progrès.", "Time each station + each km to track your progress.")] }, ] }; }
+function sRecovery(c) { const g = c ? c.lang : "fr"; return { cat: "recovery", title: loc(g, "Récupération active", "Active recovery"), tag: loc(g, "Mobilité & régénération", "Mobility & recovery"), duration: 35, blocks: [
+    { label: loc(g, "Au choix", "Your choice"), items: [loc(g, "25–30 min très facile : marche rapide, vélo ou nage", "25–30 min very easy: brisk walk, bike or swim")] },
+    { label: loc(g, "Mobilité", "Mobility"), items: [loc(g, "10 min : hanches, chevilles, épaules, thoraciques", "10 min: hips, ankles, shoulders, thoracic spine")] },
+    { label: loc(g, "Notes", "Notes"), items: [loc(g, "Aucune intensité. Le progrès se construit pendant la récupération.", "No intensity. Progress is built during recovery.")] }, ] }; }
+function sRaceRehearsal(c) { const g = c.lang; const alt = `${equipAlt("wallball", c.equip, g)} / ${equipAlt("sledpush", c.equip, g)} / ${equipAlt("row", c.equip, g)}`; return { cat: "hyrox", title: loc(g, "Répétition jour J", "Race-day rehearsal"), tag: loc(g, "Affûtage — court & vif", "Taper — short & sharp"), duration: 45, blocks: [
+    { label: loc(g, "Échauffement", "Warm-up"), items: [loc(g, "15 min comme le jour J : progressif + gammes + 2 lignes droites", "15 min like race day: progressive + drills + 2 strides")] },
+    { label: loc(g, "Bloc principal", "Main set"), items: [loc(g, "Mini-simulation 3 tours :", "Mini-simulation, 3 rounds:"), `• 1 km ${loc(g, "à", "at")} ${fmtPace(c.z.hyrox)}`, loc(g, `• 1 station (alterne ${alt})`, `• 1 station (alternate ${alt})`)] },
+    { label: loc(g, "Notes", "Notes"), items: [loc(g, "Reste large sous ta limite. On entretient, on ne construit plus.", "Stay well under your limit. We maintain, no longer build."), loc(g, "Teste tenue, chaussures, nutrition, transitions.", "Test kit, shoes, nutrition, transitions.")] }, ] }; }
 
 function weeklyCategories(d, wk) { const r = wk % 2 === 0 ? "intervals" : "tempo";
   switch (d) {
@@ -538,7 +545,7 @@ function weekLayout(d) { switch (d) {
     default: return [0, "rest", 1, "rest", 2, "rest", "rest"];
   } }
 
-function generateProgram(form, limiters, adj = 0) {
+function generateProgram(form, limiters, adj = 0, lang = "fr") {
   const totalWeeks = form.weeks;
   const phaseSeq = buildPhases(totalWeeks);
   const fiveK = mmssToSec(form.fiveKTime) || RUN_LEVEL_5K[form.runLevel] || RUN_LEVEL_5K.intermediaire;
@@ -554,20 +561,20 @@ function generateProgram(form, limiters, adj = 0) {
     const isRaceWeek = i === totalWeeks - 1;
     const isDeload = !isRaceWeek && phaseKey !== "taper" && (i + 1) % 4 === 0 && i < totalWeeks - 2;
     const cats = weeklyCategories(form.daysPerWeek, i);
-    const ctx = { z, phaseKey, pp, wk: i, equip, w, weak, adj, orm: form.oneRM || {}, maxPull: form.maxPullups, maxBurp: form.maxBurpees };
+    const ctx = { z, phaseKey, pp, wk: i, equip, w, weak, adj, lang, orm: form.oneRM || {}, maxPull: form.maxPullups, maxBurp: form.maxBurpees };
     let sessions = cats.map((c) => GEN[c]({ ...ctx }));
     if (phaseKey === "taper") {
-      sessions = sessions.map((s) => s.cat === "strength" ? { ...s, duration: Math.round(s.duration * 0.6), tag: "Entretien léger", blocks: s.blocks.slice(0, 2) } : s.cat === "hyrox" ? sRaceRehearsal(ctx) : GEN.easyRun(ctx));
-      if (isRaceWeek) sessions = [GEN.easyRun(ctx), sRaceRehearsal(ctx), { cat: "recovery", title: "Veille de course", tag: "Activation", duration: 20, blocks: [{ label: "Programme", items: ["15 min footing très léger + 3 lignes droites", "Mobilité douce", "Repos, hydratation, sommeil. Prépare ton sac."] }] }];
+      sessions = sessions.map((s) => s.cat === "strength" ? { ...s, duration: Math.round(s.duration * 0.6), tag: loc(lang, "Entretien léger", "Light maintenance"), blocks: s.blocks.slice(0, 2) } : s.cat === "hyrox" ? sRaceRehearsal(ctx) : GEN.easyRun(ctx));
+      if (isRaceWeek) sessions = [GEN.easyRun(ctx), sRaceRehearsal(ctx), { cat: "recovery", title: loc(lang, "Veille de course", "Day before race"), tag: loc(lang, "Activation", "Activation"), duration: 20, blocks: [{ label: loc(lang, "Programme", "Plan"), items: [loc(lang, "15 min footing très léger + 3 lignes droites", "15 min very light jog + 3 strides"), loc(lang, "Mobilité douce", "Gentle mobility"), loc(lang, "Repos, hydratation, sommeil. Prépare ton sac.", "Rest, hydration, sleep. Pack your bag.")] }] }];
     }
-    if (isDeload) sessions = sessions.map((s) => ({ ...s, duration: Math.round(s.duration * 0.65), tag: s.tag + " · allégé" }));
+    if (isDeload) sessions = sessions.map((s) => ({ ...s, duration: Math.round(s.duration * 0.65), tag: s.tag + loc(lang, " · allégé", " · easy") }));
     const layout = weekLayout(form.daysPerWeek).map((slot) => slot === "rest" ? null : sessions[slot] || null);
     const restIdxs = layout.map((s, idx) => s === null ? idx : -1).filter((x) => x >= 0);
-    if (restIdxs.length && form.daysPerWeek <= 5) layout[restIdxs[Math.floor(restIdxs.length / 2)]] = sRecovery();
+    if (restIdxs.length && form.daysPerWeek <= 5) layout[restIdxs[Math.floor(restIdxs.length / 2)]] = sRecovery(ctx);
     const totalMin = layout.reduce((a, s) => a + (s ? s.duration : 0), 0);
-    let focus = PHASE_META[phaseKey].desc;
-    if (isDeload) focus = "Semaine de récupération : volume réduit pour absorber le travail.";
-    if (isRaceWeek) focus = "Semaine de course ! Fraîcheur, routine, confiance. Tu es prêt·e.";
+    let focus = tr(lang, PHASE_META[phaseKey].desc);
+    if (isDeload) focus = loc(lang, "Semaine de récupération : volume réduit pour absorber le travail.", "Recovery week: reduced volume to absorb the work.");
+    if (isRaceWeek) focus = loc(lang, "Semaine de course ! Fraîcheur, routine, confiance. Tu es prêt·e.", "Race week! Freshness, routine, confidence. You're ready.");
     return { number: i + 1, phaseKey, phaseLabel: PHASE_META[phaseKey].label, color: PHASE_META[phaseKey].color, isDeload, isTaper: phaseKey === "taper", isRaceWeek, focus, totalMin, days: layout };
   });
   return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak, eventCity: form.eventCity || "", adj };
@@ -1065,7 +1072,6 @@ function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onT
 
     <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} feedback={feedback} onToggle={onToggle} onFeedback={onFeedback} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
 
-    <p className="hint subtle center" style={{ marginTop: 4 }}>{t("Les détails des séances sont affichés en français pour l'instant — leur traduction arrive très bientôt.")}</p>
     <div className="prog-actions">
       <button className="btn ghost" onClick={() => window.print()}><Printer size={15} /> {t("Imprimer / PDF")}</button>
       <button className="btn ghost" onClick={onRestart}><RotateCcw size={15} /> {t("Nouveau programme")}</button>
@@ -1088,6 +1094,15 @@ export default function App() {
   const topRef = useRef(null);
 
   useEffect(() => { store.set("mhp_lang", lang); }, [lang]);
+  useEffect(() => {
+    setSaved((prev) => {
+      if (!prev || !prev.form) return prev;
+      const program = generateProgram(prev.form, prev.limiters, prev.program?.adj || 0, lang);
+      const data = { ...prev, program };
+      store.set("mhp_data", data);
+      return data;
+    });
+  }, [lang]);
   useEffect(() => { const id = "mhp-fonts"; if (!document.getElementById(id)) {
     const l = document.createElement("link"); l.id = id; l.rel = "stylesheet";
     l.href = "https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap";
@@ -1099,7 +1114,7 @@ export default function App() {
 
   const handleGenerate = (form) => {
     const limiters = analyzeLimiters(form);
-    const program = generateProgram(form, limiters);
+    const program = generateProgram(form, limiters, 0, lang);
     const profile = runProfile(form);
     const data = { form, program, limiters, profile };
     setSaved(data); store.set("mhp_data", data);
@@ -1112,7 +1127,7 @@ export default function App() {
   const setSessionFeedback = (key, val) => setFeedback((p) => { const n = { ...p }; if (val === null) delete n[key]; else n[key] = val; return n; });
   const applyAdjustment = (target) => {
     if (!saved?.form) return;
-    const program = generateProgram(saved.form, saved.limiters, target);
+    const program = generateProgram(saved.form, saved.limiters, target, lang);
     const data = { ...saved, program };
     setSaved(data); store.set("mhp_data", data);
     setFeedback({}); store.set("mhp_feedback", {}); // on repart sur des retours frais
