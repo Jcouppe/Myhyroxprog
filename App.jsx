@@ -156,6 +156,9 @@ const I18N = { en: {
   // Reporter / Sauter
   "Options": "Options", "Reporter": "Postpone", "Sauter": "Skip",
   "Séance sautée": "Skipped session", "Annuler": "Undo",
+  // Conditions d'utilisation
+  "Conditions d'utilisation": "Terms of Use", "Fermer": "Close",
+  "J'ai lu et j'accepte les ": "I have read and accept the ",
 } };
 function tr(lang, s, vars) {
   let out = (lang === "en" && I18N.en[s] !== undefined) ? I18N.en[s] : s;
@@ -830,7 +833,8 @@ function Paywall({ onClose, onUnlock }) {
 
 /* ---------------- Wizard ---------------- */
 const STEPS = ["La course", "Course à pied", "Performances", "Force & matériel", "Disponibilité"];
-function Wizard({ onGenerate, account }) {
+function Wizard({ onGenerate, account, termsAccepted, onAcceptTerms, onShowTerms }) {
+  const [agree, setAgree] = useState(false);
   const [step, setStep] = useState(0);
   const [dateMode, setDateMode] = useState("event"); // "event" | "manual"
   const [eventCity, setEventCity] = useState("");
@@ -865,12 +869,12 @@ function Wizard({ onGenerate, account }) {
     return true;
   };
   const t = useT();
-  const submit = () => onGenerate({
+  const submit = () => { if (!termsAccepted && agree && onAcceptTerms) onAcceptTerms(); onGenerate({
     weeks: Math.min(24, Math.max(2, weeks)), division, goal, eventCity,
     fiveKTime: knows5k === "yes" ? fiveKTime : "", runLevel,
     doneHyrox, pastFormat, hyroxFinish, hyroxRunAvg, stationTimes,
     strengthLevel, experience, equipment, oneRM, maxPullups, maxBurpees, weakStations, daysPerWeek,
-  });
+  }); };
 
   return (<div className="card wizard">
     <div className="wiz-steps">
@@ -989,12 +993,126 @@ function Wizard({ onGenerate, account }) {
           <li><Dumbbell size={13} /> {t("Force")} {strengthLevel}/5 · {equipment === "gym" ? t("salle") : equipment === "limited" ? t("limité") : t("maison")}</li>
           <li><Calendar size={13} /> {daysPerWeek} {t("séances")} / {t("semaine")}</li>
         </ul></div>
+        {!termsAccepted && (<label className="terms-check">
+          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+          <span>{t("J'ai lu et j'accepte les ")}<button type="button" className="link" onClick={onShowTerms}>{t("Conditions d'utilisation")}</button>.</span>
+        </label>)}
       </>)}
     </div>
     <div className="wiz-nav">
       <button className="btn ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>{t("Retour")}</button>
       {step < STEPS.length - 1 ? (<button className="btn primary" disabled={!canNext()} onClick={() => setStep((s) => s + 1)}>{t("Continuer")} <ArrowRight size={16} /></button>)
-        : (<button className="btn primary" onClick={submit}>{t("Générer mon programme")} <Zap size={16} /></button>)}
+        : (<button className="btn primary" disabled={!termsAccepted && !agree} onClick={submit}>{t("Générer mon programme")} <Zap size={16} /></button>)}
+    </div>
+  </div>);
+}
+
+/* ---------------- Conditions d'utilisation ---------------- */
+const TERMS = {
+  fr: `CONDITIONS GÉNÉRALES D'UTILISATION
+
+Dernière mise à jour : [date]
+
+1. Objet et éditeur
+Le présent service (le « Service ») est un générateur de programmes d'entraînement en ligne édité par [Nom / entité], [adresse], [e-mail de contact] (l'« Éditeur »). Les présentes conditions régissent l'accès et l'utilisation du Service.
+
+2. Acceptation
+En cochant la case d'acceptation et/ou en utilisant le Service, tu reconnais avoir lu, compris et accepté les présentes conditions. Si tu n'es pas d'accord, n'utilise pas le Service.
+
+3. Avertissement santé (important)
+Le Service fournit des plans d'entraînement à caractère général et informatif. Il ne constitue ni un avis médical, ni un diagnostic, ni un traitement. Consulte un médecin avant de débuter tout programme, en particulier en cas de problème de santé, de blessure ou de grossesse. Tu t'entraînes sous ta seule responsabilité. Les charges, allures et volumes proposés sont des repères à adapter à tes sensations ; l'Éditeur décline toute responsabilité en cas de blessure ou de dommage lié à l'utilisation du Service.
+
+4. Absence d'affiliation
+Le Service n'est ni affilié, ni partenaire, ni approuvé ou sponsorisé par les organisateurs de l'épreuve HYROX. « HYROX » est une marque déposée appartenant à ses titulaires respectifs ; toute référence à HYROX est purement descriptive, pour indiquer la compatibilité de l'entraînement avec ce type d'épreuve.
+
+5. Nature du Service et disponibilité
+Le Service est fourni « en l'état » et évolue régulièrement. L'Éditeur ne garantit ni une disponibilité continue, ni l'absence d'erreurs. Les données (programme, séances cochées) peuvent être stockées localement sur ton appareil et peuvent être perdues (effacement du navigateur, changement d'appareil).
+
+6. Propriété intellectuelle
+L'ensemble du Service — code, algorithmes, contenus, textes, design, logos — demeure la propriété exclusive de l'Éditeur. Toute reproduction, copie, revente, distribution, modification, décompilation, extraction automatisée de données (scraping) ou exploitation, totale ou partielle, sans autorisation écrite préalable, est interdite.
+
+7. Licence d'utilisation
+L'Éditeur t'accorde un droit d'utilisation personnel, non exclusif, non transférable et non commercial du Service et des programmes générés, pour ton seul usage. Tu ne peux ni les partager, ni les revendre, ni les diffuser publiquement.
+
+8. Obligations de l'utilisateur
+Tu t'engages à utiliser le Service de manière licite, à ne pas contourner ses protections ou son paiement, à ne pas perturber son fonctionnement et à ne pas partager tes identifiants.
+
+9. Abonnement et paiement
+Certaines fonctionnalités peuvent être payantes. Les modalités (prix, durée, renouvellement, résiliation) sont précisées au moment de la souscription. [À compléter lors de la mise en place du paiement.]
+
+10. Données personnelles
+Le traitement des données est décrit dans la Politique de confidentialité [lien]. À ce stade, les données saisies sont principalement stockées sur ton appareil.
+
+11. Limitation de responsabilité
+Dans les limites permises par la loi, l'Éditeur ne saurait être tenu responsable des dommages directs ou indirects résultant de l'utilisation ou de l'impossibilité d'utiliser le Service.
+
+12. Modification des conditions
+L'Éditeur peut modifier les présentes conditions à tout moment. La version applicable est celle en vigueur lors de ton utilisation.
+
+13. Droit applicable
+Les présentes conditions sont régies par le droit suisse. Tout litige relève des tribunaux compétents du siège de l'Éditeur, sous réserve des dispositions impératives protégeant les consommateurs.
+
+14. Contact
+[e-mail de contact]
+
+Modèle fourni à titre indicatif — à faire valider par un professionnel du droit avant mise en ligne.`,
+  en: `TERMS OF USE
+
+Last updated: [date]
+
+1. Purpose and publisher
+This service (the "Service") is an online training-program generator published by [Name / entity], [address], [contact email] (the "Publisher"). These terms govern access to and use of the Service.
+
+2. Acceptance
+By ticking the acceptance box and/or using the Service, you acknowledge that you have read, understood and accepted these terms. If you do not agree, do not use the Service.
+
+3. Health disclaimer (important)
+The Service provides general, informational training plans. It is not medical advice, a diagnosis or a treatment. Consult a doctor before starting any program, especially if you have a health condition, an injury or are pregnant. You train at your own risk. Loads, paces and volumes are guidelines to adapt to how you feel; the Publisher accepts no liability for any injury or damage related to use of the Service.
+
+4. No affiliation
+The Service is not affiliated with, partnered with, endorsed or sponsored by the organisers of the HYROX event. "HYROX" is a registered trademark belonging to its respective owners; any reference to HYROX is purely descriptive, to indicate that the training is compatible with that type of event.
+
+5. Nature and availability
+The Service is provided "as is" and evolves regularly. The Publisher does not guarantee continuous availability or the absence of errors. Data (program, ticked sessions) may be stored locally on your device and may be lost (browser clearing, device change).
+
+6. Intellectual property
+The entire Service — code, algorithms, content, text, design, logos — remains the exclusive property of the Publisher. Any reproduction, copying, resale, distribution, modification, decompilation, automated data extraction (scraping) or exploitation, in whole or in part, without prior written authorisation, is prohibited.
+
+7. Licence to use
+The Publisher grants you a personal, non-exclusive, non-transferable, non-commercial right to use the Service and the generated programs for your own use only. You may not share, resell or publicly distribute them.
+
+8. User obligations
+You agree to use the Service lawfully, not to circumvent its protections or payment, not to disrupt its operation and not to share your credentials.
+
+9. Subscription and payment
+Some features may be paid. The terms (price, duration, renewal, cancellation) are specified at the time of subscription. [To be completed when payment is implemented.]
+
+10. Personal data
+Data processing is described in the Privacy Policy [link]. At this stage, the data you enter is mainly stored on your device.
+
+11. Limitation of liability
+To the extent permitted by law, the Publisher shall not be liable for any direct or indirect damages arising from the use of, or inability to use, the Service.
+
+12. Changes to the terms
+The Publisher may amend these terms at any time. The applicable version is the one in force when you use the Service.
+
+13. Governing law
+These terms are governed by Swiss law. Any dispute falls under the competent courts of the Publisher's registered office, subject to mandatory consumer-protection provisions.
+
+14. Contact
+[contact email]
+
+Template provided for guidance only — to be reviewed by a legal professional before publication.`,
+};
+function TermsModal({ onClose }) {
+  const t = useT();
+  const lang = useContext(LangContext);
+  return (<div className="modal-bg" onClick={onClose}>
+    <div className="modal terms-modal" onClick={(e) => e.stopPropagation()}>
+      <button className="modal-x" onClick={onClose} aria-label={t("Fermer")}><X size={18} /></button>
+      <h3 className="modal-title">{t("Conditions d'utilisation")}</h3>
+      <div className="terms-body">{(TERMS[lang] || TERMS.fr).split("\n").map((line, i) => <p key={i}>{line || "\u00a0"}</p>)}</div>
+      <button className="btn primary full" onClick={onClose}>{t("Fermer")}</button>
     </div>
   </div>);
 }
@@ -1260,7 +1378,11 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const [lang, setLang] = useState(() => store.get("mhp_lang", "fr"));
+  const [termsAccepted, setTermsAccepted] = useState(() => !!store.get("mhp_terms", null));
+  const [showTerms, setShowTerms] = useState(false);
   const topRef = useRef(null);
+
+  const acceptTerms = () => { const rec = { accepted: true, date: new Date().toISOString() }; store.set("mhp_terms", rec); setTermsAccepted(true); };
 
   useEffect(() => { store.set("mhp_lang", lang); }, [lang]);
   useEffect(() => {
@@ -1341,12 +1463,13 @@ export default function App() {
     <div ref={topRef} />
     <main className="main">
       {view === "landing" && <Landing onStart={goStart} />}
-      {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">{t("Construisons ton programme")}</h2><Wizard onGenerate={handleGenerate} account={account} /></div>)}
+      {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">{t("Construisons ton programme")}</h2><Wizard onGenerate={handleGenerate} account={account} termsAccepted={termsAccepted} onAcceptTerms={acceptTerms} onShowTerms={() => setShowTerms(true)} /></div>)}
       {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} profile={saved.profile || (saved.form ? runProfile(saved.form) : null)} unlocked={unlocked} checks={checks} feedback={feedback} skipped={skipped} onToggle={toggleCheck} onFeedback={setSessionFeedback} onSkip={toggleSkip} onPostpone={postponeSession} onAdjust={applyAdjustment} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
     </main>
-    <footer className="foot"><RhythmStrip height={10} /><span>{t("MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.")}</span></footer>
+    <footer className="foot"><RhythmStrip height={10} /><span>{t("MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.")}</span><button className="foot-link" onClick={() => setShowTerms(true)}>{t("Conditions d'utilisation")}</button></footer>
     {showAuth && <AuthModal onClose={() => setShowAuth(false)} onConnect={connect} />}
     {showPay && <Paywall onClose={() => setShowPay(false)} onUnlock={unlock} />}
+    {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
   </div></LangContext.Provider>);
 }
 
@@ -1378,6 +1501,14 @@ const CSS = `
 .lang-toggle:hover{border-color:var(--ink);}
 .lang-toggle .on{color:var(--cobalt);}
 .lang-toggle .sep{color:var(--line);font-weight:400;}
+.foot-link{display:inline-block;margin-top:8px;font-size:12.5px;font-weight:600;color:var(--cobalt);text-decoration:underline;}
+.foot-link:hover{color:var(--ink);}
+.terms-modal{max-width:680px;max-height:85vh;display:flex;flex-direction:column;}
+.terms-body{overflow-y:auto;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:6px 0 14px;font-size:13px;line-height:1.5;}
+.terms-body p{margin:0 0 6px;}
+.terms-check{display:flex;align-items:flex-start;gap:9px;margin-top:14px;font-size:13.5px;line-height:1.45;cursor:pointer;}
+.terms-check input{margin-top:2px;width:17px;height:17px;flex-shrink:0;accent-color:var(--cobalt);}
+.terms-check .link{background:none;border:0;padding:0;cursor:pointer;}
 .nav-user{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-2);}
 
 /* Buttons */
