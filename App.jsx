@@ -3,7 +3,7 @@ import {
   Activity, Calendar, ChevronDown, Dumbbell, Footprints, Timer,
   Target, Flame, RotateCcw, Printer, Wind, Anchor, ArrowRight, Check,
   MapPin, Gauge, Zap, Lock, User, LogOut, CheckCircle2, Circle,
-  TrendingUp, Sparkles, X
+  TrendingUp, Sparkles, X, MoreHorizontal, Undo2
 } from "lucide-react";
 
 /* =====================================================================
@@ -153,6 +153,9 @@ const I18N = { en: {
   // Export agenda
   "Ajouter à mon agenda (.ics)": "Add to my calendar (.ics)",
   "Fichier .ics : sur iPhone/Mac il s'ouvre dans Apple Calendrier ; pour Google Agenda, importe le fichier (Paramètres → Importer). Les séances apparaissent aux bonnes dates jusqu'à ta course.": "An .ics file: on iPhone/Mac it opens in Apple Calendar; for Google Calendar, import the file (Settings → Import). Sessions appear on the right dates up to your race.",
+  // Reporter / Sauter
+  "Options": "Options", "Reporter": "Postpone", "Sauter": "Skip",
+  "Séance sautée": "Skipped session", "Annuler": "Undo",
 } };
 function tr(lang, s, vars) {
   let out = (lang === "en" && I18N.en[s] !== undefined) ? I18N.en[s] : s;
@@ -1051,12 +1054,22 @@ function LimitersCard({ limiters }) {
 }
 
 /* ---------------- Séance ---------------- */
-function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
+function SessionCard({ s, checked, fb, skipped, onToggle, onFeedback, onSkip, onPostpone }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
   if (!s) return <div className="day rest"><span className="rest-label">{t("Repos")}</span></div>;
   const { c, Icon } = CAT_STYLE[s.cat];
   const fbOpts = [["easy", "Trop facile"], ["ok", "Parfait"], ["hard", "Trop dur"]];
+  if (skipped) {
+    return (<div className="day skipped">
+      <div className="day-head">
+        <span className="day-cat sk" style={{ background: c }}><Icon size={13} /></span>
+        <span className="day-main"><span className="day-title">{s.title}</span><span className="day-tag">{t("Séance sautée")}</span></span>
+        <button className="btn ghost sm" onClick={onSkip}><Undo2 size={14} /> {t("Annuler")}</button>
+      </div>
+    </div>);
+  }
   return (<div className={`day ${open ? "open" : ""} ${checked ? "checked" : ""}`}>
     <div className="day-head">
       <button className="day-check" onClick={onToggle} aria-label={checked ? t("Décocher") : t("Marquer comme fait")}>
@@ -1067,6 +1080,13 @@ function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
         <span className="day-dur mono">{s.duration}′</span>
         <ChevronDown size={16} className="day-chev" />
       </button>
+      {!checked && (<div className="day-menu-wrap">
+        <button className="day-menu-btn" onClick={() => setMenu((o) => !o)} aria-label={t("Options")}><MoreHorizontal size={17} /></button>
+        {menu && (<div className="day-menu">
+          <button onClick={() => { onPostpone(); setMenu(false); }}><Calendar size={13} /> {t("Reporter")}</button>
+          <button onClick={() => { onSkip(); setMenu(false); }}><X size={13} /> {t("Sauter")}</button>
+        </div>)}
+      </div>)}
     </div>
     {checked && (<div className="day-fb">
       <span className="day-fb-l">{t("Ressenti :")}</span>
@@ -1078,7 +1098,7 @@ function SessionCard({ s, checked, fb, onToggle, onFeedback }) {
 }
 
 /* ---------------- Semaine ---------------- */
-function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock, defaultOpen }) {
+function WeekCard({ wk, locked, checks, feedback, skipped, onToggle, onFeedback, onSkip, onPostpone, onUnlock, defaultOpen }) {
   const t = useT();
   const [open, setOpen] = useState(defaultOpen);
   const dayCount = wk.days.filter(Boolean).length;
@@ -1097,7 +1117,7 @@ function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock
     {!locked && open && (<div className="week-days">
       {wk.days.map((s, i) => (<div key={i} className="day-row">
         <span className="dow mono">{t(DAY_NAMES[i])}</span>
-        <SessionCard s={s} checked={!!checks[`w${wk.number}d${i}`]} fb={feedback[`w${wk.number}d${i}`]} onToggle={() => onToggle(`w${wk.number}d${i}`)} onFeedback={(v) => onFeedback(`w${wk.number}d${i}`, v)} />
+        <SessionCard s={s} checked={!!checks[`w${wk.number}d${i}`]} fb={feedback[`w${wk.number}d${i}`]} skipped={!!skipped[`w${wk.number}d${i}`]} onToggle={() => onToggle(`w${wk.number}d${i}`)} onFeedback={(v) => onFeedback(`w${wk.number}d${i}`, v)} onSkip={() => onSkip(`w${wk.number}d${i}`)} onPostpone={() => onPostpone(wk.number, i)} />
       </div>))}
     </div>)}
     {locked && (<div className="week-locked-body" onClick={onUnlock}>
@@ -1108,14 +1128,16 @@ function WeekCard({ wk, locked, checks, feedback, onToggle, onFeedback, onUnlock
 }
 
 /* ---------------- Dashboard ---------------- */
-function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onToggle, onFeedback, onAdjust, onUnlock, onRestart }) {
+function Dashboard({ program, limiters, profile, unlocked, checks, feedback, skipped, onToggle, onFeedback, onSkip, onPostpone, onAdjust, onUnlock, onRestart }) {
   const { division, z, weeks, totalWeeks, daysPerWeek } = program;
   const [showWeights, setShowWeights] = useState(false);
   const phaseSummary = useMemo(() => { const out = []; let cur = null;
     program.phaseSeq.forEach((k, i) => { if (!cur || cur.k !== k) { cur = { k, start: i + 1, end: i + 1 }; out.push(cur); } else cur.end = i + 1; }); return out; }, [program.phaseSeq]);
-  const totalSessions = weeks.reduce((a, w) => a + w.days.filter(Boolean).length, 0);
+  let totalSessions = 0, skippedCount = 0;
+  weeks.forEach((w) => w.days.forEach((s, d) => { if (s) { totalSessions++; if (skipped[`w${w.number}d${d}`]) skippedCount++; } }));
+  const effTotal = Math.max(0, totalSessions - skippedCount);
   const doneSessions = Object.values(checks).filter(Boolean).length;
-  const pct = totalSessions ? Math.round(doneSessions / totalSessions * 100) : 0;
+  const pct = effTotal ? Math.round(doneSessions / effTotal * 100) : 0;
   const adj = program.adj || 0;
   const sg = suggestAdj(feedback, adj);
   const t = useT();
@@ -1128,7 +1150,7 @@ function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onT
       </div>
       <RhythmStrip height={16} />
       <div className="progress-wrap">
-        <div className="progress-top"><span>{t("Progression")}</span><span className="mono">{doneSessions}/{totalSessions} {t("séances")} · {pct}%</span></div>
+        <div className="progress-top"><span>{t("Progression")}</span><span className="mono">{doneSessions}/{effTotal} {t("séances")} · {pct}%</span></div>
         <div className="progress-track"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
       </div>
       <div className="sum-grid">
@@ -1181,7 +1203,7 @@ function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onT
       <button className="btn primary sm">{t("Débloquer")}</button>
     </div>)}
 
-    <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} feedback={feedback} onToggle={onToggle} onFeedback={onFeedback} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
+    <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} feedback={feedback} skipped={skipped} onToggle={onToggle} onFeedback={onFeedback} onSkip={onSkip} onPostpone={onPostpone} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
 
     <div className="prog-actions">
       <button className="btn primary" onClick={() => downloadICS(program)}><Calendar size={15} /> {t("Ajouter à mon agenda (.ics)")}</button>
@@ -1232,6 +1254,7 @@ export default function App() {
   const [saved, setSaved] = useState(() => store.get("mhp_data", null)); // {form, program, limiters}
   const [checks, setChecks] = useState(() => store.get("mhp_checks", {}));
   const [feedback, setFeedback] = useState(() => store.get("mhp_feedback", {}));
+  const [skipped, setSkipped] = useState(() => store.get("mhp_skipped", {}));
   const [unlocked, setUnlocked] = useState(() => store.get("mhp_unlocked", false));
   const [view, setView] = useState(() => store.get("mhp_data", null) ? "dashboard" : "landing");
   const [showAuth, setShowAuth] = useState(false);
@@ -1256,6 +1279,7 @@ export default function App() {
 
   useEffect(() => { store.set("mhp_checks", checks); }, [checks]);
   useEffect(() => { store.set("mhp_feedback", feedback); }, [feedback]);
+  useEffect(() => { store.set("mhp_skipped", skipped); }, [skipped]);
   useEffect(() => { store.set("mhp_unlocked", unlocked); }, [unlocked]);
 
   const handleGenerate = (form) => {
@@ -1266,10 +1290,36 @@ export default function App() {
     setSaved(data); store.set("mhp_data", data);
     setView("dashboard"); setTimeout(() => topRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
-  const restart = () => { store.del("mhp_data"); setSaved(null); setChecks({}); store.set("mhp_checks", {}); setFeedback({}); store.set("mhp_feedback", {}); setView("onboarding"); };
+  const restart = () => { store.del("mhp_data"); setSaved(null); setChecks({}); store.set("mhp_checks", {}); setFeedback({}); store.set("mhp_feedback", {}); setSkipped({}); store.set("mhp_skipped", {}); setView("onboarding"); };
   const connect = (acc) => { setAccount(acc); store.set("mhp_account", acc); setShowAuth(false); };
   const logout = () => { setAccount(null); store.del("mhp_account"); };
   const toggleCheck = (key) => setChecks((p) => ({ ...p, [key]: !p[key] }));
+  const toggleSkip = (key) => setSkipped((p) => { const n = { ...p }; if (n[key]) delete n[key]; else n[key] = true; return n; });
+  const postponeSession = (weekNum, dayIdx) => {
+    setSaved((prev) => {
+      if (!prev || !prev.program) return prev;
+      const program = JSON.parse(JSON.stringify(prev.program));
+      const weeks = program.weeks;
+      const wi = weeks.findIndex((w) => w.number === weekNum);
+      if (wi < 0) return prev;
+      const sess = weeks[wi].days[dayIdx];
+      if (!sess) return prev;
+      let placed = false;
+      for (let d = dayIdx + 1; d < 7 && !placed; d++) {
+        if (!weeks[wi].days[d]) { weeks[wi].days[d] = sess; weeks[wi].days[dayIdx] = null; placed = true; }
+      }
+      for (let w = wi + 1; w < weeks.length && !placed; w++) {
+        for (let d = 0; d < 7 && !placed; d++) {
+          if (!weeks[w].days[d]) { weeks[w].days[d] = sess; weeks[wi].days[dayIdx] = null; placed = true; }
+        }
+      }
+      if (!placed) return prev;
+      weeks.forEach((w) => { w.totalMin = w.days.reduce((a, s) => a + (s ? s.duration : 0), 0); });
+      const data = { ...prev, program };
+      store.set("mhp_data", data);
+      return data;
+    });
+  };
   const setSessionFeedback = (key, val) => setFeedback((p) => { const n = { ...p }; if (val === null) delete n[key]; else n[key] = val; return n; });
   const applyAdjustment = (target) => {
     if (!saved?.form) return;
@@ -1292,7 +1342,7 @@ export default function App() {
     <main className="main">
       {view === "landing" && <Landing onStart={goStart} />}
       {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">{t("Construisons ton programme")}</h2><Wizard onGenerate={handleGenerate} account={account} /></div>)}
-      {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} profile={saved.profile || (saved.form ? runProfile(saved.form) : null)} unlocked={unlocked} checks={checks} feedback={feedback} onToggle={toggleCheck} onFeedback={setSessionFeedback} onAdjust={applyAdjustment} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
+      {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} profile={saved.profile || (saved.form ? runProfile(saved.form) : null)} unlocked={unlocked} checks={checks} feedback={feedback} skipped={skipped} onToggle={toggleCheck} onFeedback={setSessionFeedback} onSkip={toggleSkip} onPostpone={postponeSession} onAdjust={applyAdjustment} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
     </main>
     <footer className="foot"><RhythmStrip height={10} /><span>{t("MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.")}</span></footer>
     {showAuth && <AuthModal onClose={() => setShowAuth(false)} onConnect={connect} />}
@@ -1548,6 +1598,15 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .fb-btn.on.easy{background:var(--cobalt);border-color:var(--cobalt);color:#fff;}
 .fb-btn.on.ok{background:var(--accent-deep);border-color:var(--accent-deep);color:var(--accent-ink);}
 .fb-btn.on.hard{background:var(--orange);border-color:var(--orange);color:#fff;}
+.day-menu-wrap{position:relative;flex-shrink:0;}
+.day-menu-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--muted);}
+.day-menu-btn:hover{background:var(--paper-2);color:var(--ink);}
+.day-menu{position:absolute;right:0;top:34px;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(22,24,29,.14);overflow:hidden;min-width:140px;}
+.day-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;font-size:13px;font-weight:600;color:var(--ink);text-align:left;}
+.day-menu button:hover{background:var(--paper-2);}
+.day.skipped{opacity:.6;}
+.day.skipped .day-title{text-decoration:line-through;}
+.day-cat.sk{opacity:.7;}
 
 /* Weeks */
 .weeks{display:flex;flex-direction:column;gap:9px;}
