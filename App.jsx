@@ -150,6 +150,9 @@ const I18N = { en: {
   "Prototype : aucune donnée n'est envoyée sur internet. La connexion multi-appareils arrivera avec la version sécurisée.": "Prototype: no data is sent online. Multi-device sign-in will come with the secure version.",
   "La semaine 1 est offerte. Débloque les semaines suivantes, le suivi complet et les ajustements jusqu'au jour J.": "Week 1 is free. Unlock the following weeks, full tracking and adjustments up to race day.",
   "Prototype : le déblocage est simulé sur cet appareil. Le paiement réel (Stripe) sera branché à l'étape suivante.": "Prototype: unlocking is simulated on this device. Real payment (Stripe) will be wired in the next step.",
+  // Export agenda
+  "Ajouter à mon agenda (.ics)": "Add to my calendar (.ics)",
+  "Fichier .ics : sur iPhone/Mac il s'ouvre dans Apple Calendrier ; pour Google Agenda, importe le fichier (Paramètres → Importer). Les séances apparaissent aux bonnes dates jusqu'à ta course.": "An .ics file: on iPhone/Mac it opens in Apple Calendar; for Google Calendar, import the file (Settings → Import). Sessions appear on the right dates up to your race.",
 } };
 function tr(lang, s, vars) {
   let out = (lang === "en" && I18N.en[s] !== undefined) ? I18N.en[s] : s;
@@ -240,12 +243,13 @@ const RM_TABLE = [[1,100],[2,96.9],[3,93.1],[4,89.8],[5,87.4],[6,85.8],[7,82.9],
 function pctForReps(r) { let best = RM_TABLE[0]; for (const e of RM_TABLE) if (Math.abs(e[0] - r) < Math.abs(best[0] - r)) best = e; return best[1]; }
 const round25 = (x) => Math.round(x / 2.5) * 2.5;
 /* charge calculée pour un 1RM donné et un nombre de reps ; null si pas de 1RM */
-function loadFor(oneRM, reps, adj = 0) {
+function loadFor(oneRM, reps, adj = 0, factor = 1) {
+  if (factor === null) return null; // variante sans charge calculée (poids du corps, goblet, etc.)
   const v = Number(oneRM);
   if (!v || isNaN(v)) return null;
   const pct = pctForReps(reps);
-  const kg = round25(v * pct / 100 * (1 + 0.025 * adj));
-  return `${kg} kg (≈${Math.round(pct)} %)`;
+  const kg = round25(v * pct / 100 * (1 + 0.025 * adj) * factor);
+  return factor === 1 ? `${kg} kg (≈${Math.round(pct)} %)` : `≈ ${kg} kg`;
 }
 
 /* ---------- Temps / allures ---------- */
@@ -322,6 +326,108 @@ function stationDrill(key, w, equip, lang) {
     case "wallball": return `${equipAlt("wallball", equip, lang)} — ${loc(lang, `5 × 20 (${w.wallball}), squat complet, lancer dans le rythme`, `5 × 20 (${w.wallball}), full squat, throw in rhythm`)}`;
     default: return "";
   }
+}
+
+/* ---------- Variantes d'exercices (rotation hebdomadaire pour éviter la redondance) ----------
+   f = facteur de charge vs le 1RM saisi (1 = lift de référence, null = pas de kg affiché). */
+const LIFT_VARIANTS = {
+  squat: {
+    gym: [
+      { fr: "Back squat (barre)", en: "Back squat (barbell)", f: 1 },
+      { fr: "Front squat (barre)", en: "Front squat (barbell)", f: 0.82 },
+      { fr: "Box squat (barre)", en: "Box squat (barbell)", f: 0.95 },
+      { fr: "Back squat tempo (3-1-1)", en: "Tempo back squat (3-1-1)", f: 0.78 },
+    ],
+    limited: [
+      { fr: "Goblet squat lourd (kettlebell/haltère)", en: "Heavy goblet squat (kettlebell/dumbbell)", f: null },
+      { fr: "Squat bulgare (haltères)", en: "Bulgarian split squat (dumbbells)", f: null },
+      { fr: "Goblet squat tempo", en: "Tempo goblet squat", f: null },
+    ],
+    home: [
+      { fr: "Squat bulgare lesté (sac à dos)", en: "Loaded Bulgarian split squat (backpack)", f: null },
+      { fr: "Squat sauté + squat poids du corps", en: "Jump squat + bodyweight squat", f: null },
+      { fr: "Squat pistol assisté", en: "Assisted pistol squat", f: null },
+    ],
+  },
+  hinge: {
+    gym: [
+      { fr: "Soulevé de terre (barre)", en: "Deadlift (barbell)", f: 1 },
+      { fr: "Soulevé de terre roumain (RDL)", en: "Romanian deadlift (RDL)", f: 0.85 },
+      { fr: "Soulevé trap-bar", en: "Trap-bar deadlift", f: 1.05 },
+      { fr: "Soulevé sumo", en: "Sumo deadlift", f: 1 },
+    ],
+    limited: [
+      { fr: "RDL haltères", en: "Dumbbell RDL", f: null },
+      { fr: "Swings kettlebell lourds", en: "Heavy kettlebell swings", f: null },
+      { fr: "Good morning (élastique/haltère)", en: "Band/dumbbell good morning", f: null },
+    ],
+    home: [
+      { fr: "RDL unijambe (sac lesté)", en: "Single-leg RDL (loaded bag)", f: null },
+      { fr: "Pont fessier lesté", en: "Loaded glute bridge", f: null },
+      { fr: "Good morning (sac lesté)", en: "Loaded-bag good morning", f: null },
+    ],
+  },
+  press: {
+    gym: [
+      { fr: "Développé militaire (barre)", en: "Strict press (barbell)", f: 1 },
+      { fr: "Push press", en: "Push press", f: 1.2 },
+      { fr: "Développé épaules haltères", en: "Dumbbell shoulder press", f: 0.85 },
+      { fr: "Z-press", en: "Z-press", f: 0.8 },
+    ],
+    limited: [
+      { fr: "Développé haltères debout", en: "Standing dumbbell press", f: null },
+      { fr: "Pompes lestées", en: "Weighted push-ups", f: null },
+      { fr: "Push press haltères", en: "Dumbbell push press", f: null },
+    ],
+    home: [
+      { fr: "Pompes pieds surélevés", en: "Feet-elevated push-ups", f: null },
+      { fr: "Pike push-ups", en: "Pike push-ups", f: null },
+      { fr: "Développé sac lesté", en: "Loaded-bag press", f: null },
+    ],
+  },
+  pull: {
+    gym: [
+      { fr: "Tractions", en: "Pull-ups", f: null },
+      { fr: "Rowing barre (Pendlay)", en: "Barbell row (Pendlay)", f: null },
+      { fr: "Tirage vertical (poulie)", en: "Lat pulldown", f: null },
+      { fr: "Rowing buste penché", en: "Bent-over row", f: null },
+    ],
+    limited: [
+      { fr: "Tractions / rowing haltères", en: "Pull-ups / dumbbell rows", f: null },
+      { fr: "Rowing haltère unilatéral", en: "Single-arm dumbbell row", f: null },
+      { fr: "Tirage élastique", en: "Band pulldown", f: null },
+    ],
+    home: [
+      { fr: "Tractions (barre/élastique)", en: "Pull-ups (bar/band)", f: null },
+      { fr: "Rowing élastique", en: "Band rows", f: null },
+      { fr: "Rowing australien (sous une table)", en: "Inverted rows (under a table)", f: null },
+    ],
+  },
+  lunge: {
+    gym: [
+      { fr: "Fentes marchées (sandbag)", en: "Walking lunges (sandbag)", f: null },
+      { fr: "Fentes arrière (haltères)", en: "Reverse lunges (dumbbells)", f: null },
+      { fr: "Step-ups lestés", en: "Loaded step-ups", f: null },
+      { fr: "Fentes bulgares", en: "Bulgarian split squats", f: null },
+    ],
+    limited: [
+      { fr: "Fentes marchées (sandbag/haltères)", en: "Walking lunges (sandbag/dumbbells)", f: null },
+      { fr: "Step-ups lestés", en: "Loaded step-ups", f: null },
+      { fr: "Fentes arrière lestées", en: "Loaded reverse lunges", f: null },
+    ],
+    home: [
+      { fr: "Fentes marchées (sac à dos)", en: "Walking lunges (backpack)", f: null },
+      { fr: "Fentes sautées", en: "Jumping lunges", f: null },
+      { fr: "Step-ups (marche/banc)", en: "Step-ups (stairs/bench)", f: null },
+    ],
+  },
+};
+/* choisit une variante selon la semaine (rotation) ; repli sur equipAlt si non listé */
+function pickLift(mvt, equip, lang, wk) {
+  const pool = LIFT_VARIANTS[mvt] && LIFT_VARIANTS[mvt][equip];
+  if (!pool || !pool.length) return { name: equipAlt(mvt, equip, lang), f: 1 };
+  const v = pool[wk % pool.length];
+  return { name: loc(lang, v.fr, v.en), f: v.f === undefined ? 1 : v.f };
 }
 
 /* ---------- Analyse des facteurs limitants ----------
@@ -472,13 +578,16 @@ function sStrengthLower(c) {
   const g = c.lang;
   const { sets, reps, rest, goal } = strengthScheme(c.phaseKey, g);
   const hingeReps = Math.min(reps, 8);
-  const sq = loadFor(c.orm?.squat, reps, c.adj);
-  const dl = loadFor(c.orm?.deadlift, hingeReps, c.adj);
+  const sqV = pickLift("squat", c.equip, g, c.wk);
+  const dlV = pickLift("hinge", c.equip, g, c.wk);
+  const luV = pickLift("lunge", c.equip, g, c.wk);
+  const sq = loadFor(c.orm?.squat, reps, c.adj, sqV.f);
+  const dl = loadFor(c.orm?.deadlift, hingeReps, c.adj, dlV.f);
   const items = [
-    `${equipAlt("squat", c.equip, g)} — ${sets} × ${reps}${sq ? ` → ${sq}` : ""}, ${rest}`,
-    `${equipAlt("hinge", c.equip, g)} — ${sets} × ${hingeReps}${dl ? ` → ${dl}` : ""}`,
+    `${sqV.name} — ${sets} × ${reps}${sq ? ` → ${sq}` : ""}, ${rest}`,
+    `${dlV.name} — ${sets} × ${hingeReps}${dl ? ` → ${dl}` : ""}`,
     `${equipAlt("sledpush", c.equip, g)} — ${loc(g, `5 × 15 m (≈ ${c.w.push}) si dispo`, `5 × 15 m (≈ ${c.w.push}) if available`)}`,
-    `${equipAlt("lunge", c.equip, g)} — ${loc(g, "3 × 20 m lestées", "3 × 20 m loaded")}`,
+    `${luV.name} — ${loc(g, "3 × 20 m", "3 × 20 m")}`,
   ];
   const focus = ["sledpush", "sledpull", "lunge"].filter((k) => c.weak.includes(k)).map((k) => stationDrill(k, c.w, c.equip, g));
   const useMetcon = c.phaseKey === "build" || c.phaseKey === "specific";
@@ -489,13 +598,15 @@ function sStrengthLower(c) {
 function sStrengthUpper(c) {
   const g = c.lang;
   const { sets, reps, rest, goal } = strengthScheme(c.phaseKey, g);
-  const sh = loadFor(c.orm?.shoulder, reps, c.adj);
+  const prV = pickLift("press", c.equip, g, c.wk);
+  const puV = pickLift("pull", c.equip, g, c.wk);
+  const sh = loadFor(c.orm?.shoulder, reps, c.adj, prV.f);
   const bn = loadFor(c.orm?.bench, reps, c.adj);
   const pullSets = c.maxPull ? `${sets} × ${Math.max(3, Math.round(c.maxPull * (c.phaseKey === "specific" ? 0.55 : 0.45)))} ${loc(g, `(≈${c.phaseKey === "specific" ? 55 : 45} % de ton max)`, `(≈${c.phaseKey === "specific" ? 55 : 45}% of your max)`)}` : `${sets} × 6–10`;
   const items = [
-    `${equipAlt("press", c.equip, g)} (${loc(g, "épaules", "shoulders")}) — ${sets} × ${reps}${sh ? ` → ${sh}` : ""}, ${rest}`,
+    `${prV.name} — ${sets} × ${reps}${sh ? ` → ${sh}` : ""}, ${rest}`,
     ...(bn ? [`${loc(g, "Développé couché", "Bench press")} — ${sets} × ${reps} → ${bn}`] : []),
-    `${equipAlt("pull", c.equip, g)} — ${pullSets}`,
+    `${puV.name} — ${pullSets}`,
     `${equipAlt("ski", c.equip, g)} — 4 × 250 m`,
     `${equipAlt("farmers", c.equip, g)} — 4 × 40 m (≈ ${c.w.farmers})`,
   ];
@@ -577,7 +688,7 @@ function generateProgram(form, limiters, adj = 0, lang = "fr") {
     if (isRaceWeek) focus = loc(lang, "Semaine de course ! Fraîcheur, routine, confiance. Tu es prêt·e.", "Race week! Freshness, routine, confidence. You're ready.");
     return { number: i + 1, phaseKey, phaseLabel: PHASE_META[phaseKey].label, color: PHASE_META[phaseKey].color, isDeload, isTaper: phaseKey === "taper", isRaceWeek, focus, totalMin, days: layout };
   });
-  return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak, eventCity: form.eventCity || "", adj };
+  return { totalWeeks, daysPerWeek: form.daysPerWeek, division: w, z, phaseSeq, weeks, weak, eventCity: form.eventCity || "", raceDate: form.raceDate || "", adj };
 }
 
 /* ============================ UI ============================ */
@@ -1073,11 +1184,46 @@ function Dashboard({ program, limiters, profile, unlocked, checks, feedback, onT
     <div className="weeks">{weeks.map((wk) => (<WeekCard key={wk.number} wk={wk} locked={!unlocked && wk.number > 1} checks={checks} feedback={feedback} onToggle={onToggle} onFeedback={onFeedback} onUnlock={onUnlock} defaultOpen={wk.number === 1} />))}</div>
 
     <div className="prog-actions">
+      <button className="btn primary" onClick={() => downloadICS(program)}><Calendar size={15} /> {t("Ajouter à mon agenda (.ics)")}</button>
       <button className="btn ghost" onClick={() => window.print()}><Printer size={15} /> {t("Imprimer / PDF")}</button>
       <button className="btn ghost" onClick={onRestart}><RotateCcw size={15} /> {t("Nouveau programme")}</button>
     </div>
+    <p className="hint subtle center">{t("Fichier .ics : sur iPhone/Mac il s'ouvre dans Apple Calendrier ; pour Google Agenda, importe le fichier (Paramètres → Importer). Les séances apparaissent aux bonnes dates jusqu'à ta course.")}</p>
     <p className="hint subtle center">{t("Programme sauvegardé sur cet appareil. Plan d'entraînement général, pas un avis médical : en cas de doute, consulte un professionnel.")}</p>
   </div>);
+}
+
+/* ---------------- Export agenda (.ics — Apple Calendar & Google Agenda) ---------------- */
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; return addDays(x, -day); };
+const icsDate = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+const icsEsc = (s) => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+function buildICS(program, lang) {
+  const anchor = program.raceDate ? new Date(program.raceDate + "T00:00:00") : new Date();
+  const raceMon = mondayOf(anchor);
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MyHyroxProg//FR-EN//", "CALSCALE:GREGORIAN"];
+  program.weeks.forEach((wk) => {
+    const mon = addDays(raceMon, -(program.totalWeeks - wk.number) * 7);
+    wk.days.forEach((s, d) => {
+      if (!s) return;
+      const date = addDays(mon, d);
+      const desc = s.blocks.map((b) => `${b.label}: ${b.items.join(" / ")}`).join("\n");
+      lines.push("BEGIN:VEVENT", `UID:mhp-w${wk.number}d${d}@myhyroxprog`,
+        `DTSTART;VALUE=DATE:${icsDate(date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(date, 1))}`,
+        `SUMMARY:${icsEsc(`MyHyroxProg — ${s.title} (${s.duration}′)`)}`,
+        `DESCRIPTION:${icsEsc(desc)}`, "END:VEVENT");
+    });
+  });
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+}
+function downloadICS(program, lang) {
+  try {
+    const blob = new Blob([buildICS(program, lang)], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "myhyroxprog.ics";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) { /* no-op */ }
 }
 
 /* ---------------- App ---------------- */
