@@ -99,7 +99,7 @@ const I18N = { en: {
   "Suivi des séances et progression": "Session tracking and progress",
   "Allures et facteurs limitants détaillés": "Detailed paces and limiting factors",
   // Footer
-  "MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.": "MyHyroxProg — training generator · paces and loads are guides to adjust to how you feel.",
+  "HUSKR — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.": "HUSKR — training generator · paces and loads are guides to adjust to how you feel.",
   // EN-mode note
   "Les détails des séances sont affichés en français pour l'instant — leur traduction arrive très bientôt.": "Session details are shown in French for now — their translation is coming very soon.",
   // Wizard — Hyrox passé (solo Open/Pro)
@@ -712,13 +712,22 @@ function RhythmStrip({ height = 14 }) {
   </div>);
 }
 
+/* Logotype de marque : HUSKR + les 8 traits (stations) */
+function BrandLogo({ size = "md" }) {
+  return (<span className={`brandlogo ${size}`}>
+    <span className="bl-word">HUSK<span className="bl-r">R</span></span>
+    <span className="bl-strip" aria-hidden="true">
+      {Array.from({ length: 8 }).map((_, i) => (<i key={i} className={i === 7 ? "fin" : i % 2 ? "ink" : "cob"} />))}
+    </span>
+  </span>);
+}
+
 /* ---------------- Barre de navigation ---------------- */
 function Nav({ account, onLogin, onLogout, onHome, onStart, hasProgram, onProgram, lang, onToggleLang }) {
   const t = useT();
   return (<nav className="nav">
     <button className="brand" onClick={onHome} title={t("Retour à l'accueil")}>
-      <span className="logo"><Activity size={17} /></span>
-      <span className="brand-name">MyHyrox<span className="brand-accent">Prog</span></span>
+      <BrandLogo />
     </button>
     <div className="nav-right">
       <button className="lang-toggle" onClick={onToggleLang} title="FR / EN" aria-label="Language">
@@ -1341,7 +1350,7 @@ const icsEsc = (s) => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").repl
 function buildICS(program, lang) {
   const anchor = program.raceDate ? new Date(program.raceDate + "T00:00:00") : new Date();
   const raceMon = mondayOf(anchor);
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MyHyroxProg//FR-EN//", "CALSCALE:GREGORIAN"];
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//HUSKR//FR-EN//", "CALSCALE:GREGORIAN"];
   program.weeks.forEach((wk) => {
     const mon = addDays(raceMon, -(program.totalWeeks - wk.number) * 7);
     wk.days.forEach((s, d) => {
@@ -1350,7 +1359,7 @@ function buildICS(program, lang) {
       const desc = s.blocks.map((b) => `${b.label}: ${b.items.join(" / ")}`).join("\n");
       lines.push("BEGIN:VEVENT", `UID:mhp-w${wk.number}d${d}@myhyroxprog`,
         `DTSTART;VALUE=DATE:${icsDate(date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(date, 1))}`,
-        `SUMMARY:${icsEsc(`MyHyroxProg — ${s.title} (${s.duration}′)`)}`,
+        `SUMMARY:${icsEsc(`HUSKR — ${s.title} (${s.duration}′)`)}`,
         `DESCRIPTION:${icsEsc(desc)}`, "END:VEVENT");
     });
   });
@@ -1466,7 +1475,7 @@ export default function App() {
       {view === "onboarding" && (<div className="onboarding"><h2 className="ob-title">{t("Construisons ton programme")}</h2><Wizard onGenerate={handleGenerate} account={account} termsAccepted={termsAccepted} onAcceptTerms={acceptTerms} onShowTerms={() => setShowTerms(true)} /></div>)}
       {view === "dashboard" && saved && (<Dashboard program={saved.program} limiters={saved.limiters} profile={saved.profile || (saved.form ? runProfile(saved.form) : null)} unlocked={unlocked} checks={checks} feedback={feedback} skipped={skipped} onToggle={toggleCheck} onFeedback={setSessionFeedback} onSkip={toggleSkip} onPostpone={postponeSession} onAdjust={applyAdjustment} onUnlock={() => setShowPay(true)} onRestart={restart} />)}
     </main>
-    <footer className="foot"><RhythmStrip height={10} /><span>{t("MyHyroxProg — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.")}</span><button className="foot-link" onClick={() => setShowTerms(true)}>{t("Conditions d'utilisation")}</button></footer>
+    <footer className="foot"><RhythmStrip height={10} /><span>{t("HUSKR — générateur d'entraînement · allures et charges sont des repères à ajuster à tes sensations.")}</span><button className="foot-link" onClick={() => setShowTerms(true)}>{t("Conditions d'utilisation")}</button></footer>
     {showAuth && <AuthModal onClose={() => setShowAuth(false)} onConnect={connect} />}
     {showPay && <Paywall onClose={() => setShowPay(false)} onUnlock={unlock} />}
     {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
@@ -1491,6 +1500,18 @@ const CSS = `
 .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
   padding:13px 22px;background:rgba(236,233,224,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line-2);}
 .brand{display:flex;align-items:center;gap:9px;}
+.brandlogo{display:inline-flex;flex-direction:column;align-items:stretch;line-height:1;gap:3px;}
+.bl-word{font-family:'Archivo';font-weight:800;letter-spacing:-.03em;font-size:20px;color:var(--ink);text-align:left;}
+.bl-r{color:var(--orange);}
+.bl-strip{display:flex;gap:2px;}
+.bl-strip i{flex:1;height:4px;border-radius:1px;}
+.bl-strip i.cob{background:var(--cobalt);}
+.bl-strip i.ink{background:var(--ink);}
+.bl-strip i.fin{background:var(--orange);}
+.brandlogo.lg .bl-word{font-size:30px;}
+.brandlogo.lg .bl-strip i{height:5px;}
+.brandlogo.sm .bl-word{font-size:15px;}
+.brandlogo.sm .bl-strip i{height:3px;}
 .logo{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--accent);}
 .brand-name{font-family:'Archivo';font-weight:800;letter-spacing:-.02em;font-size:18px;}
 .brand-accent{color:var(--cobalt);}
